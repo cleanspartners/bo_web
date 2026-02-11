@@ -32,7 +32,7 @@ import {
     ChevronsDown,
     Download
 } from 'lucide-react';
-가져
+
 export default function UserListPage() {
     // Data State
     const [users, setUsers] = useState([]);
