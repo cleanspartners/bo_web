@@ -240,7 +240,7 @@ export default function UserDetailModal({ isOpen, onClose, user, userDetail, onU
                 // Upload Avatar if needed
                 let avatarId = null;
                 if (avatarFile) {
-                    avatarId = await uploadFile(avatarFile);
+                    avatarId = await uploadFile(avatarFile, 'bde05c26-bb7a-45c2-b2de-c1ae91273f1d');
                 }
 
                 if (isCreateMode) {
