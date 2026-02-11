@@ -71,19 +71,7 @@ export default function AdminLayout() {
                         <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
                         대시보드
                     </NavLink>
-                    <NavLink
-                        to="/users"
-                        onClick={handleNavClick}
-                        className={({ isActive }) =>
-                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${isActive
-                                ? 'bg-blue-50 text-blue-600'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            }`
-                        }
-                    >
-                        <Users className="w-5 h-5 flex-shrink-0" />
-                        사용자 관리
-                    </NavLink>
+
                     <NavLink
                         to="/orders"
                         onClick={handleNavClick}
@@ -96,6 +84,19 @@ export default function AdminLayout() {
                     >
                         <ShoppingCart className="w-5 h-5 flex-shrink-0" />
                         주문 관리
+                    </NavLink>
+                    <NavLink
+                        to="/users"
+                        onClick={handleNavClick}
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${isActive
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        <Users className="w-5 h-5 flex-shrink-0" />
+                        사용자 관리
                     </NavLink>
                     <NavLink
                         to="/channels"

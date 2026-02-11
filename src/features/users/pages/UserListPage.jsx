@@ -32,6 +32,7 @@ import {
     ChevronsDown,
     Download
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function UserListPage() {
     // Data State
@@ -256,8 +257,24 @@ export default function UserListPage() {
         setUserDetailModalOpen(true);
     };
 
+    const handleExcelDownload = () => {
+        const worksheet = XLSX.utils.json_to_sheet(users.map((user, index) => ({
+            'No.': index + 1,
+            '권한그룹명': user.role?.name || '-',
+            '회사명': user.first_name || '-',
+            '팀장명': user.last_name || '-',
+            '이메일': user.email,
+            '부서정보': user.title || '-',
+            '등록상태': userDetailsMap[user.id] ? 'Y' : 'N',
+            '마지막 접속일시': user.last_access ? new Date(user.last_access).toLocaleString() : '-'
+        })));
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Users");
+        XLSX.writeFile(workbook, `Users_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
+
     return (
-        <div className="space-y-4 p-4 bg-gray-50 h-full flex flex-col">
+        <div className="space-y-4 p-4 bg-gray-50 flex flex-col h-auto md:h-full">
             {/* Search Filter Section - Matched to OrderListPage */}
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
@@ -347,7 +364,7 @@ export default function UserListPage() {
             </div>
 
             {/* Data Table Section */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
                 <div className="p-3 border-b flex flex-col sm:flex-row justify-between items-center gap-2 bg-gray-50/50">
                     <div className="text-sm font-medium text-gray-600">
                         관리자 정보 <span className="mx-2 text-gray-300">|</span> 총 <span className="text-blue-600 font-bold">{users.length}</span> 건
@@ -369,8 +386,13 @@ export default function UserListPage() {
                         >
                             + 사용자 등록
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full sm:w-auto h-8 text-xs bg-green-600 hover:bg-green-700 text-white border-transparent">
-                            <Download className="w-3 h-3 mr-1" /> EXCEL
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto h-8 text-xs bg-green-600 hover:bg-green-700 text-white border-transparent"
+                            onClick={handleExcelDownload}
+                        >
+                            <Download className="w-3 h-3 mr-1" /> EXCEL 다운로드
                         </Button>
                     </div>
                 </div>

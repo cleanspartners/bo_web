@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileInput, RotateCw, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileInput, RotateCw, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import OrderDetailModal from '../components/OrderDetailModal';
 import OrderImportModal from '../components/OrderImportModal';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -254,8 +255,29 @@ export default function OrderListPage() {
         setIsModalOpen(true);
     };
 
+    const handleExcelDownload = () => {
+        const worksheet = XLSX.utils.json_to_sheet(orders.map((order, index) => ({
+            'No.': index + 1,
+            '고객명': order.customer_name,
+            '요청날짜': order.order_date?.split('T')[0],
+            '서비스항목': order.service_type,
+            '작업상태': order.status,
+            '파트너': order.partner?.first_name || '-',
+            '팀장명': order.partner?.last_name || '-',
+            '수수료구분': order.commission_type || '-',
+            '판매금액': order.order_price,
+            '수수료': order.commission_type === '비율' ? `${order.commission || 0}%` : (order.commission || 0),
+            '정산금액': order.rel_settlement_amount,
+            '수수료금액': order.rel_commission_amount,
+            '작성일시': order.date_created ? new Date(order.date_created).toLocaleString() : '-'
+        })));
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+        XLSX.writeFile(workbook, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
+
     return (
-        <div className="space-y-4 p-4 bg-gray-50 h-full flex flex-col">
+        <div className="space-y-4 p-4 bg-gray-50 flex flex-col h-auto md:h-full">
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 className="text-lg font-bold text-gray-800">조회 조건</h2>
@@ -275,7 +297,7 @@ export default function OrderListPage() {
 
                 {isSearchExpanded && (
                     <form onSubmit={handleSearch}>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">요청날짜</label>
                                 <div className="flex items-center gap-2">
@@ -368,7 +390,7 @@ export default function OrderListPage() {
                 )}
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
                 <div className="p-3 border-b flex flex-col sm:flex-row justify-between items-center gap-2 bg-gray-50/50">
                     <div className="text-sm font-medium text-gray-600 w-full sm:w-auto text-center sm:text-left">
                         총 <span className="text-blue-600 font-bold">{totalCount}</span> 건
@@ -398,8 +420,13 @@ export default function OrderListPage() {
                         >
                             EXCEL 가져오기
                         </Button>
-                        <Button variant="outline" size="sm" className="w-full sm:w-auto h-8 text-xs bg-green-600 hover:bg-green-700 text-white border-transparent">
-                            EXCEL 다운로드
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto h-8 text-xs bg-green-600 hover:bg-green-700 text-white border-transparent"
+                            onClick={handleExcelDownload}
+                        >
+                            <Download className="w-3 h-3 mr-1" /> EXCEL 다운로드
                         </Button>
                     </div>
                 </div>
@@ -488,10 +515,8 @@ export default function OrderListPage() {
                                         <TableCell className="text-right font-medium text-blue-600" onClick={() => handleRowClick(order.id)}>{formatCurrency(order.order_price)}</TableCell>
                                         <TableCell className="text-right" onClick={() => handleRowClick(order.id)}>
                                             {order.commission_type === '비율'
-                                                ? `${order.commission}%`
-                                                : order.commission !== undefined && order.commission !== null
-                                                    ? order.commission.toLocaleString()
-                                                    : '-'
+                                                ? `${order.commission || 0}%`
+                                                : (order.commission || 0).toLocaleString()
                                             }
                                         </TableCell>
                                         <TableCell className="text-right font-medium text-red-600">{formatCurrency(order.rel_settlement_amount)}</TableCell>
@@ -504,8 +529,8 @@ export default function OrderListPage() {
                     </Table>
                 </div>
 
-                <div className="p-3 border-t flex justify-center items-center gap-4 bg-white relative">
-                    <div className="flex items-center gap-2 absolute left-4">
+                <div className="p-3 border-t flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
+                    <div className="flex items-center gap-2">
                         <span className="text-xs text-gray-500">Size</span>
                         <select
                             className="text-xs border border-gray-300 rounded px-1 py-1 outline-none focus:border-blue-500"
@@ -522,24 +547,26 @@ export default function OrderListPage() {
                         </select>
                     </div>
 
-                    <div className="flex gap-1">
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(1)} disabled={page === 1}>
-                            <ChevronsLeft className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(page - 1)} disabled={page === 1}>
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                    </div>
-                    <span className="text-sm font-medium text-gray-600">
-                        Page {page} of {Math.ceil(totalCount / limit) || 1}
-                    </span>
-                    <div className="flex gap-1">
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(page + 1)} disabled={page >= Math.ceil(totalCount / limit)}>
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(Math.ceil(totalCount / limit))} disabled={page >= Math.ceil(totalCount / limit)}>
-                            <ChevronsRight className="h-4 w-4" />
-                        </Button>
+                    <div className="flex items-center gap-4">
+                        <div className="flex gap-1">
+                            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(1)} disabled={page === 1}>
+                                <ChevronsLeft className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(page - 1)} disabled={page === 1}>
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <span className="text-sm font-medium text-gray-600">
+                            Page {page} of {Math.ceil(totalCount / limit) || 1}
+                        </span>
+                        <div className="flex gap-1">
+                            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(page + 1)} disabled={page >= Math.ceil(totalCount / limit)}>
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="h-8 w-8 p-0" onClick={() => handlePageChange(Math.ceil(totalCount / limit))} disabled={page >= Math.ceil(totalCount / limit)}>
+                                <ChevronsRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
             </div>
