@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function AdminLayout() {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -140,9 +140,9 @@ export default function AdminLayout() {
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 font-bold">
-                            A
+                            {user?.last_name?.charAt(0) || 'A'}
                         </div>
-                        <span className="text-sm font-medium text-gray-700">관리자님</span>
+                        <span className="text-sm font-medium text-gray-700">{user?.last_name || '관리자님'}</span>
                     </div>
                 </header>
                 <div className="flex-1 overflow-auto p-6">

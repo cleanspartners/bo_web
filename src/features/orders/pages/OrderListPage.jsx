@@ -8,6 +8,7 @@ import {
     TableHead,
     TableHeader,
     TableRow,
+    TableFooter,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,11 @@ export default function OrderListPage() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [totalCount, setTotalCount] = useState(0);
+    const [totalAmounts, setTotalAmounts] = useState({
+        order_price: 0,
+        rel_settlement_amount: 0,
+        rel_commission_amount: 0
+    });
 
     // 모달 상태
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,16 +88,16 @@ export default function OrderListPage() {
                 filter._and.push({ order_date: { _lte: searchParams.endDate } });
             }
             if (searchParams.partnerName) {
-                filter._and.push({ partner: { first_name: { _contains: searchParams.partnerName } } });
+                filter._and.push({ partner: { first_name: { _icontains: searchParams.partnerName.trim() } } });
             }
             if (searchParams.teamLeaderName) {
-                filter._and.push({ partner: { last_name: { _contains: searchParams.teamLeaderName } } });
+                filter._and.push({ partner: { last_name: { _icontains: searchParams.teamLeaderName.trim() } } });
             }
             if (searchParams.customerName) {
-                filter._and.push({ customer_name: { _contains: searchParams.customerName } });
+                filter._and.push({ customer_name: { _icontains: searchParams.customerName.trim() } });
             }
             if (searchParams.phone) {
-                filter._and.push({ phone: { _contains: searchParams.phone } });
+                filter._and.push({ phone: { _icontains: searchParams.phone.trim() } });
             }
 
             // 정렬 파라미터 구성
@@ -118,7 +124,10 @@ export default function OrderListPage() {
                     page: page
                 })),
                 client.request(aggregate('ord_mstr', {
-                    aggregate: { countDistinct: 'id' },
+                    aggregate: {
+                        countDistinct: 'id',
+                        sum: ['order_price', 'rel_settlement_amount', 'rel_commission_amount']
+                    },
                     query: {
                         filter: filter._and.length > 0 ? filter : {}
                     }
@@ -128,7 +137,14 @@ export default function OrderListPage() {
             setOrders(dataResponse || []);
 
             const count = countResponse?.[0]?.countDistinct?.id;
+            const sums = countResponse?.[0]?.sum;
+
             setTotalCount(count ? Number(count) : 0);
+            setTotalAmounts({
+                order_price: sums?.order_price ? Number(sums.order_price) : 0,
+                rel_settlement_amount: sums?.rel_settlement_amount ? Number(sums.rel_settlement_amount) : 0,
+                rel_commission_amount: sums?.rel_commission_amount ? Number(sums.rel_commission_amount) : 0
+            });
 
         } catch (error) {
             console.error("주문 목록 로드 실패:", error);
@@ -256,7 +272,7 @@ export default function OrderListPage() {
     };
 
     const handleExcelDownload = () => {
-        const worksheet = XLSX.utils.json_to_sheet(orders.map((order, index) => ({
+        const excelData = orders.map((order, index) => ({
             'No.': index + 1,
             '고객명': order.customer_name,
             '요청날짜': order.order_date?.split('T')[0],
@@ -270,7 +286,26 @@ export default function OrderListPage() {
             '정산금액': order.rel_settlement_amount,
             '수수료금액': order.rel_commission_amount,
             '작성일시': order.date_created ? new Date(order.date_created).toLocaleString() : '-'
-        })));
+        }));
+
+        // 합계 행 추가
+        excelData.push({
+            'No.': '합계',
+            '고객명': '',
+            '요청날짜': '',
+            '서비스항목': '',
+            '작업상태': '',
+            '파트너': '',
+            '팀장명': '',
+            '수수료구분': '',
+            '판매금액': totalAmounts.order_price, // 숫자 자체로 저장 (엑셀 서식 적용 가능)
+            '수수료': '',
+            '정산금액': totalAmounts.rel_settlement_amount,
+            '수수료금액': totalAmounts.rel_commission_amount,
+            '작성일시': ''
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
         XLSX.writeFile(workbook, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -526,6 +561,16 @@ export default function OrderListPage() {
                                 ))
                             )}
                         </TableBody>
+                        <TableFooter className="bg-gray-50 border-t-2 border-gray-200">
+                            <TableRow className="hover:bg-gray-50 font-bold text-gray-700">
+                                <TableCell colSpan={9} className="text-center">합계</TableCell>
+                                <TableCell className="text-right text-blue-600">{formatCurrency(totalAmounts.order_price)}</TableCell>
+                                <TableCell className="text-right">-</TableCell>
+                                <TableCell className="text-right text-red-600">{formatCurrency(totalAmounts.rel_settlement_amount)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(totalAmounts.rel_commission_amount)}</TableCell>
+                                <TableCell className="text-center">-</TableCell>
+                            </TableRow>
+                        </TableFooter>
                     </Table>
                 </div>
 

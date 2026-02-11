@@ -89,7 +89,7 @@ export default function LoginPage() {
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full max-w-md">
                 <div className="text-center mb-10">
                     <img src="/cleans2.jpg" alt="Cleans Partners BO" className="mx-auto h-16 w-auto mb-4" />
-                    <p className="text-sm text-gray-400 mt-1">클린즈 파트너스 관리자 전용</p>
+                    <p className="text-sm text-gray-400 mt-1">클린스 파트너스 관리자 전용</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">

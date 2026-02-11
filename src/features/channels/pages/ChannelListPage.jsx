@@ -139,7 +139,7 @@ export default function ChannelListPage() {
     };
 
     return (
-        <div className="space-y-4 p-4 bg-gray-50 h-full flex flex-col">
+        <div className="space-y-4 p-4 bg-gray-50 flex flex-col h-auto md:h-full">
             {/* Filter Section */}
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
@@ -191,7 +191,7 @@ export default function ChannelListPage() {
             </div>
 
             {/* Table Section */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
                 <div className="p-3 border-b flex flex-col sm:flex-row justify-between items-center gap-2 bg-gray-50/50">
                     <div className="text-sm font-medium text-gray-600 w-full sm:w-auto text-center sm:text-left">
                         총 <span className="text-blue-600 font-bold">{totalCount}</span> 건
