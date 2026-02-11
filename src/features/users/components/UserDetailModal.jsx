@@ -108,7 +108,7 @@ export default function UserDetailModal({ isOpen, onClose, user, userDetail, onU
                 if (user.avatar) {
                     // Check if avatar is object or string ID
                     const avatarId = user.avatar.id || user.avatar;
-                    setAvatarPreview(`https://admin.cleanspartners.com/assets/${avatarId}`);
+                    setAvatarPreview(`https://api.cleanspartners.com/assets/${avatarId}`);
                 }
 
                 if (userDetail) {
@@ -594,7 +594,7 @@ export default function UserDetailModal({ isOpen, onClose, user, userDetail, onU
                                             <div className="flex items-center gap-2 text-sm">
                                                 <span className="text-slate-500">현재 파일:</span>
                                                 <a
-                                                    href={`https://admin.cleanspartners.com/assets/${getFileId(formData.biz_licns_file)}`}
+                                                    href={`https://api.cleanspartners.com/assets/${getFileId(formData.biz_licns_file)}`}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="text-blue-600 hover:underline"
