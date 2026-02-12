@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import client from '@/lib/directus';
-import { updateItem, createItem, readItem, readItems, readUsers } from '@directus/sdk';
+import { updateItem, createItem, readItem, readItems } from '@directus/sdk';
 import {
     Dialog,
     DialogContent,
@@ -20,23 +20,21 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import PartnerCombobox from './PartnerCombobox';
 
-const ORDER_STATUSES = [
-    '접수', '작업보류', '예약진행', '처리완료', '접수취소'
-];
+import { useOrderStatuses } from '../hooks/useOrderStatuses';
 
 export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate }) {
+    const { statuses: ORDER_STATUSES } = useOrderStatuses();
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({});
     const [initialOrder, setInitialOrder] = useState({});
     const [channels, setChannels] = useState([]);
-    const [partners, setPartners] = useState([]);
 
     useEffect(() => {
         if (isOpen) {
             fetchChannels();
-            fetchPartners();
         }
     }, [isOpen]);
 
@@ -70,18 +68,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
         }
     }, [isOpen, orderId]);
 
-    const fetchPartners = async () => {
-        try {
-            const response = await client.request(readUsers({
-                limit: -1,
-                fields: ['id', 'first_name', 'last_name', 'email'],
-                sort: ['first_name']
-            }));
-            setPartners(response);
-        } catch (error) {
-            console.error("파트너 목록 조회 실패:", error);
-        }
-    };
+
 
     const fetchChannels = async () => {
         try {
@@ -272,8 +259,8 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                         <SelectValue placeholder="상태 선택" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {ORDER_STATUSES.map(status => (
-                                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                                        {ORDER_STATUSES.map(statusObj => (
+                                            <SelectItem key={statusObj.value} value={statusObj.value}>{statusObj.text}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -281,21 +268,10 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
 
                             <div className="bg-slate-50 p-4 border-b border-slate-200 border-t md:border-t-0 border-r-0 md:border-l border-slate-200 flex items-center font-medium text-slate-700">파트너</div>
                             <div className="p-3 border-b border-slate-200 md:border-t-0 md:col-span-2">
-                                <Select
-                                    value={formData.partner ? String(formData.partner) : ''}
-                                    onValueChange={(val) => handleSelectChange('partner', val)}
-                                >
-                                    <SelectTrigger className="w-full h-8">
-                                        <SelectValue placeholder="파트너 선택" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {partners.map(partner => (
-                                            <SelectItem key={partner.id} value={String(partner.id)}>
-                                                {formatUserName(partner)} ({partner.email})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <PartnerCombobox
+                                    value={formData.partner}
+                                    onChange={(val) => handleSelectChange('partner', val)}
+                                />
                             </div>
 
                             {/* Row 2 */}

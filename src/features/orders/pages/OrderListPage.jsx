@@ -12,17 +12,31 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileInput, RotateCw, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Download } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileInput, RotateCw, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Download, Check, ChevronsUpDown } from 'lucide-react';
+import { readUsers } from '@directus/sdk';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 import OrderDetailModal from '../components/OrderDetailModal';
 import OrderImportModal from '../components/OrderImportModal';
+import PartnerCombobox from '../components/PartnerCombobox';
 import { Checkbox } from "@/components/ui/checkbox";
 
-const ORDER_STATUSES = [
-    '접수', '작업보류', '예약진행', '처리완료', '접수취소'
-];
+import { useOrderStatuses } from '../hooks/useOrderStatuses';
 
 export default function OrderListPage() {
+    const { statuses: ORDER_STATUSES } = useOrderStatuses();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [totalCount, setTotalCount] = useState(0);
@@ -51,13 +65,22 @@ export default function OrderListPage() {
         startDate: getToday(),
         endDate: getOneMonthLater(),
         status: '',
-        partnerName: '',
-        teamLeaderName: '',
+        partnerName: '', // Legacy support or just use partnerId
+        partnerId: '', // New ID-based filter
+        partnerName: '', // Legacy support or just use partnerId
+        partnerId: '', // New ID-based filter
         customerName: '',
         phone: '',
+        address: '', // New Address filter
     });
 
     const [isSearchExpanded, setIsSearchExpanded] = useState(true);
+
+    // Bulk Update State
+    const [isBulkUpdateOpen, setIsBulkUpdateOpen] = useState(false);
+    const [bulkUpdatePartnerId, setBulkUpdatePartnerId] = useState('');
+
+
 
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(20);
@@ -87,11 +110,13 @@ export default function OrderListPage() {
             if (searchParams.endDate) {
                 filter._and.push({ order_date: { _lte: searchParams.endDate } });
             }
-            if (searchParams.partnerName) {
+            if (searchParams.partnerId) {
+                filter._and.push({ partner: { id: { _eq: searchParams.partnerId } } });
+            } else if (searchParams.partnerName) {
                 filter._and.push({ partner: { first_name: { _icontains: searchParams.partnerName.trim() } } });
             }
-            if (searchParams.teamLeaderName) {
-                filter._and.push({ partner: { last_name: { _icontains: searchParams.teamLeaderName.trim() } } });
+            if (searchParams.address) {
+                filter._and.push({ address: { _icontains: searchParams.address.trim() } });
             }
             if (searchParams.customerName) {
                 filter._and.push({ customer_name: { _icontains: searchParams.customerName.trim() } });
@@ -173,9 +198,12 @@ export default function OrderListPage() {
             endDate: getOneMonthLater(),
             status: '',
             partnerName: '',
-            teamLeaderName: '',
+            partnerId: '',
+            partnerName: '',
+            partnerId: '',
             customerName: '',
             phone: '',
+            address: '',
         });
         setPage(1);
     };
@@ -262,6 +290,28 @@ export default function OrderListPage() {
         } catch (error) {
             console.error("삭제 실패:", error);
             alert("삭제 중 오류가 발생했습니다.");
+        }
+    };
+
+    // 일괄 파트너 변경
+    const handleBulkUpdatePartner = async () => {
+        if (!bulkUpdatePartnerId) {
+            alert("변경할 파트너를 선택해주세요.");
+            return;
+        }
+
+        try {
+            await client.request(updateItems('ord_mstr', selectedRows, {
+                partner: bulkUpdatePartnerId
+            }));
+            alert("파트너가 변경되었습니다.");
+            setIsBulkUpdateOpen(false);
+            setBulkUpdatePartnerId('');
+            fetchOrders();
+            setSelectedRows([]);
+        } catch (error) {
+            console.error("파트너 변경 실패:", error);
+            alert("파트너 변경 중 오류가 발생했습니다.");
         }
     };
 
@@ -360,33 +410,21 @@ export default function OrderListPage() {
                                     onChange={(e) => setSearchParams({ ...searchParams, status: e.target.value })}
                                 >
                                     <option value="">전체</option>
-                                    {ORDER_STATUSES.map(status => (
-                                        <option key={status} value={status}>{status}</option>
+                                    {ORDER_STATUSES.map(statusObj => (
+                                        <option key={statusObj.value} value={statusObj.value}>{statusObj.text}</option>
                                     ))}
                                 </select>
                             </div>
 
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">파트너명</label>
-                                <input
-                                    type="text"
-                                    placeholder="파트너명"
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
-                                    value={searchParams.partnerName}
-                                    onChange={(e) => setSearchParams({ ...searchParams, partnerName: e.target.value })}
+                                <PartnerCombobox
+                                    value={searchParams.partnerId}
+                                    onChange={(val) => setSearchParams({ ...searchParams, partnerId: val, partnerName: '' })}
                                 />
                             </div>
 
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">팀장명</label>
-                                <input
-                                    type="text"
-                                    placeholder="팀장명"
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
-                                    value={searchParams.teamLeaderName}
-                                    onChange={(e) => setSearchParams({ ...searchParams, teamLeaderName: e.target.value })}
-                                />
-                            </div>
+
 
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">고객명</label>
@@ -409,14 +447,25 @@ export default function OrderListPage() {
                                     onChange={(e) => setSearchParams({ ...searchParams, phone: e.target.value })}
                                 />
                             </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">주소</label>
+                                <input
+                                    type="text"
+                                    placeholder="주소"
+                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                    value={searchParams.address}
+                                    onChange={(e) => setSearchParams({ ...searchParams, address: e.target.value })}
+                                />
+                            </div>
                         </div>
 
                         <div className="flex justify-center gap-2 mt-4 border-t pt-4 col-span-full">
-                            <Button variant="outline" onClick={handleReset} className="w-24">
+                            <Button type="button" variant="outline" onClick={handleReset} className="w-24">
                                 <RefreshCw className="mr-2 h-4 w-4" />
                                 초기화
                             </Button>
-                            <Button onClick={handleSearch} className="w-24 bg-blue-600 hover:bg-blue-700">
+                            <Button type="submit" onClick={handleSearch} className="w-24 bg-blue-600 hover:bg-blue-700">
                                 <Search className="mr-2 h-4 w-4" />
                                 검색
                             </Button>
@@ -439,6 +488,15 @@ export default function OrderListPage() {
                             disabled={selectedRows.length === 0}
                         >
                             선택 삭제
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto h-8 text-xs bg-orange-500 hover:bg-orange-600 text-white border-transparent"
+                            onClick={() => setIsBulkUpdateOpen(true)}
+                            disabled={selectedRows.length === 0}
+                        >
+                            파트너 일괄 변경
                         </Button>
                         <Button
                             size="sm"
@@ -487,6 +545,7 @@ export default function OrderListPage() {
                                         {renderSortIcon('order_date')}
                                     </div>
                                 </TableHead>
+                                <TableHead className="w-[150px] text-center">주소</TableHead>
                                 <TableHead className="w-[120px] text-center">서비스항목</TableHead>
                                 <TableHead className="w-[80px] text-center">작업상태</TableHead>
                                 <TableHead className="w-[100px] text-center">파트너</TableHead>
@@ -510,13 +569,13 @@ export default function OrderListPage() {
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={14} className="h-32 text-center text-gray-500">
+                                    <TableCell colSpan={15} className="h-32 text-center text-gray-500">
                                         데이터를 불러오는 중입니다...
                                     </TableCell>
                                 </TableRow>
                             ) : orders.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={14} className="h-32 text-center text-gray-500">
+                                    <TableCell colSpan={15} className="h-32 text-center text-gray-500">
                                         검색 결과가 없습니다.
                                     </TableCell>
                                 </TableRow>
@@ -535,11 +594,16 @@ export default function OrderListPage() {
                                         <TableCell className="text-center text-gray-500" onClick={() => handleRowClick(order.id)}>{totalCount - ((page - 1) * limit) - index}</TableCell>
                                         <TableCell className="text-center font-medium text-gray-900" onClick={() => handleRowClick(order.id)}>{order.customer_name}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.order_date?.split('T')[0]}</TableCell>
+                                        <TableCell className="text-center truncate max-w-[150px]" title={order.address} onClick={() => handleRowClick(order.id)}>{order.address || '-'}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.service_type}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>
                                             <Badge variant="outline" className={`bg-white whitespace-nowrap text-[10px] px-2 py-0.5 ${order.status === '접수' ? 'text-blue-600 border-blue-200 bg-blue-50' :
-                                                order.status === '처리완료' ? 'text-gray-600 border-gray-200 bg-gray-100' :
-                                                    ''
+                                                order.status === 'AS접수' ? 'text-pink-600 border-pink-200 bg-pink-50' :
+                                                    order.status === '작업보류' ? 'text-orange-600 border-orange-200 bg-orange-50' :
+                                                        order.status === '예약진행' ? 'text-violet-600 border-violet-200 bg-violet-50' :
+                                                            order.status === '처리완료' ? 'text-green-600 border-green-200 bg-green-50' :
+                                                                order.status === '접수취소' ? 'text-red-600 border-red-200 bg-red-50' :
+                                                                    'text-gray-600 border-gray-200 bg-gray-50'
                                                 }`}>
                                                 {order.status}
                                             </Badge>
@@ -563,7 +627,7 @@ export default function OrderListPage() {
                         </TableBody>
                         <TableFooter className="bg-gray-50 border-t-2 border-gray-200">
                             <TableRow className="hover:bg-gray-50 font-bold text-gray-700">
-                                <TableCell colSpan={9} className="text-center">합계</TableCell>
+                                <TableCell colSpan={10} className="text-center">합계</TableCell>
                                 <TableCell className="text-right text-blue-600">{formatCurrency(totalAmounts.order_price)}</TableCell>
                                 <TableCell className="text-right">-</TableCell>
                                 <TableCell className="text-right text-red-600">{formatCurrency(totalAmounts.rel_settlement_amount)}</TableCell>
@@ -629,6 +693,28 @@ export default function OrderListPage() {
                 onClose={() => setIsImportModalOpen(false)}
                 onUpdate={handleOrderUpdate}
             />
+
+            <Dialog open={isBulkUpdateOpen} onOpenChange={setIsBulkUpdateOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>파트너 일괄 변경</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <label className="block text-xs font-semibold text-gray-600 mb-2">변경할 파트너 선택</label>
+                        <PartnerCombobox
+                            value={bulkUpdatePartnerId}
+                            onChange={(val) => setBulkUpdatePartnerId(val)}
+                        />
+                        <p className="text-xs text-gray-500 mt-2">
+                            선택한 {selectedRows.length}개의 주문에 대해 파트너를 변경합니다.
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsBulkUpdateOpen(false)}>취소</Button>
+                        <Button onClick={handleBulkUpdatePartner} className="bg-blue-600 hover:bg-blue-700">변경하기</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div >
     );
 }

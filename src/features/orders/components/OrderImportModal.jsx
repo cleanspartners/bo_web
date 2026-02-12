@@ -51,16 +51,27 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                 }
 
                 // Data Mapping & Transformation
-                const mappedData = jsonData.map(row => ({
-                    customer_name: row['customer_name'] || '',
-                    order_date: row['order_date'] ? formatDate(row['order_date']) : null,
-                    phone: row['phone'] || '',
-                    address: row['address'] || '',
-                    service_type: row['service_type'] || '',
-                    partner: row['partner'] || null,
-                    status: row['status'] || '접수',
-                    order_price: row['order_price'] || 0
-                }));
+                const mappedData = jsonData.map(row => {
+                    const parseNumber = (val) => {
+                        if (!val) return 0;
+                        if (typeof val === 'number') return val;
+                        return Number(String(val).replace(/,/g, '')) || 0;
+                    };
+
+                    return {
+                        customer_name: row['customer_name'] || '',
+                        order_date: row['order_date'] ? formatDate(row['order_date']) : null,
+                        phone: row['phone'] || '',
+                        address: row['address'] || '',
+                        service_type: row['service_type'] || '',
+                        partner: row['partner'] || 'd6e6568c-48f0-4951-89e5-1c88421de160',
+                        status: row['status'] || '접수',
+                        order_price: parseNumber(row['order_price']) || 0,
+                        commission: parseNumber(row['commission']) || 0,
+                        rel_settlement_amount: parseNumber(row['rel_settlement_amount']) || 0,
+                        rel_commission_amount: parseNumber(row['rel_commission_amount']) || 0
+                    };
+                });
 
                 setParsedData(mappedData);
                 setPreviewData(mappedData.slice(0, 5)); // Show first 5 rows
@@ -85,9 +96,20 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
             date = val;
         } else {
             // Try to parse string or number
+            // Handle "YYYY-MM-DD HH:mm:ss" specific format if needed, but new Date() usually handles standard ISO
+            // If comma is present (invalid date string), it might fail, but let's assume standard format
             const parsed = new Date(val);
             if (isNaN(parsed.getTime())) {
-                date = new Date(); // Fallback if parsing fails
+                // If direct parsing fails, try to handle "2026-02-15 00:00:00" manually if needed, 
+                // but usually browsers handle it. 
+                // Let's fallback to current date or null if strictly needed, but user wants robustness.
+                // Assuming string might be "YYYY-MM-DD ..."
+                const parts = String(val).split(/[- :]/);
+                if (parts.length >= 3) {
+                    date = new Date(parts[0], parts[1] - 1, parts[2], parts[3] || 0, parts[4] || 0, parts[5] || 0);
+                } else {
+                    date = new Date();
+                }
             } else {
                 date = parsed;
             }
@@ -214,10 +236,12 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                             <TableHead>고객명</TableHead>
                                             <TableHead>요청일시</TableHead>
                                             <TableHead>연락처</TableHead>
-                                            <TableHead>주소</TableHead>
                                             <TableHead>서비스</TableHead>
                                             <TableHead>작업상태</TableHead>
                                             <TableHead className="text-right">판매금액</TableHead>
+                                            <TableHead className="text-right">수수료</TableHead>
+                                            <TableHead className="text-right">정산금액</TableHead>
+                                            <TableHead className="text-right">수수료금액</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -226,10 +250,12 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                                 <TableCell>{row.customer_name}</TableCell>
                                                 <TableCell>{row.order_date}</TableCell>
                                                 <TableCell>{row.phone}</TableCell>
-                                                <TableCell className="truncate max-w-[150px]">{row.address}</TableCell>
                                                 <TableCell>{row.service_type}</TableCell>
                                                 <TableCell>{row.status}</TableCell>
                                                 <TableCell className="text-right">{row.order_price?.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">{row.commission?.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">{row.rel_settlement_amount?.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">{row.rel_commission_amount?.toLocaleString()}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>

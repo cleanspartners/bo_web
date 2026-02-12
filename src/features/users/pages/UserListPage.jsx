@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import client from '@/lib/directus';
-import { readUsers, readRoles, readItems, updateUser, updateItems } from '@directus/sdk';
+import { readUsers, readRoles, readItems, updateUser, updateItems, aggregate } from '@directus/sdk';
 import UserDetailModal from '../components/UserDetailModal';
+import PartnerCombobox from '../../orders/components/PartnerCombobox';
 import {
     Table,
     TableBody,
@@ -39,6 +40,7 @@ export default function UserListPage() {
     const [users, setUsers] = useState([]);
     const [roles, setRoles] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [totalCount, setTotalCount] = useState(0);
 
     // Modal State
     const [userDetailModalOpen, setUserDetailModalOpen] = useState(false);
@@ -51,9 +53,7 @@ export default function UserListPage() {
     // Filter State
     const [filters, setFilters] = useState({
         role: '',
-        first_name: '', // 회사명
-        last_name: '',  // 팀장명
-        email: ''
+        partnerId: ''
     });
 
     const [isSearchExpanded, setIsSearchExpanded] = useState(true);
@@ -101,14 +101,8 @@ export default function UserListPage() {
             };
 
             // Apply Filters
-            if (filters.first_name) {
-                filterQuery._and.push({ first_name: { _icontains: filters.first_name } });
-            }
-            if (filters.last_name) {
-                filterQuery._and.push({ last_name: { _icontains: filters.last_name } });
-            }
-            if (filters.email) {
-                filterQuery._and.push({ email: { _icontains: filters.email } });
+            if (filters.partnerId) {
+                filterQuery._and.push({ id: { _eq: filters.partnerId } });
             }
 
             // Role filter
@@ -116,20 +110,27 @@ export default function UserListPage() {
                 filterQuery._and.push({ role: { _eq: filters.role } });
             }
 
-            const response = await client.request(readUsers({
-                limit: pagination.pageSize,
-                page: pagination.pageIndex,
-                filter: filterQuery,
-                fields: ['*', 'role.name', 'role.id'],
-                sort: ['-last_access'], // Keep last_access to avoid permission issues
-                meta: 'filter_count'
-            }));
+            // Fetch users and count in parallel
+            const [usersResponse, countResponse] = await Promise.all([
+                client.request(readUsers({
+                    limit: pagination.pageSize,
+                    page: pagination.pageIndex,
+                    filter: filterQuery,
+                    fields: ['*', 'role.name', 'role.id'],
+                    sort: ['-last_access']
+                })),
+                client.request(aggregate('directus_users', {
+                    aggregate: { count: '*' },
+                    query: { filter: filterQuery }
+                }))
+            ]);
 
-            setUsers(response);
+            setUsers(usersResponse);
+            setTotalCount(countResponse?.[0]?.count ? Number(countResponse[0].count) : 0);
 
             // Fetch usr_dtl for these users
-            if (response.length > 0) {
-                const userIds = response.map(u => u.id);
+            if (usersResponse.length > 0) {
+                const userIds = usersResponse.map(u => u.id);
                 try {
                     const detailResponse = await client.request(readItems('usr_dtl', {
                         filter: {
@@ -151,8 +152,16 @@ export default function UserListPage() {
 
         } catch (error) {
             console.error("Failed to fetch users:", error);
+            setUsers([]);
+            setTotalCount(0);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= Math.ceil(totalCount / pagination.pageSize)) {
+            setPagination(prev => ({ ...prev, pageIndex: newPage }));
         }
     };
 
@@ -164,9 +173,7 @@ export default function UserListPage() {
     const handleReset = () => {
         setFilters({
             role: '',
-            first_name: '',
-            last_name: '',
-            email: ''
+            partnerId: ''
         });
         setPagination(prev => ({ ...prev, pageIndex: 1 }));
         setTimeout(fetchUsers, 0);
@@ -263,7 +270,9 @@ export default function UserListPage() {
             '권한그룹명': user.role?.name || '-',
             '회사명': user.first_name || '-',
             '팀장명': user.last_name || '-',
-            '이메일': user.email,
+            '팀장명': user.last_name || '-',
+            '활동지역': userDetailsMap[user.id]?.actv_rgon || '-',
+            '부서정보': user.title || '-',
             '부서정보': user.title || '-',
             '등록상태': userDetailsMap[user.id] ? 'Y' : 'N',
             '마지막 접속일시': user.last_access ? new Date(user.last_access).toLocaleString() : '-'
@@ -295,7 +304,7 @@ export default function UserListPage() {
 
                 {isSearchExpanded && (
                     <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {/* Role Filter */}
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">권한 그룹 명</label>
@@ -315,36 +324,13 @@ export default function UserListPage() {
                                 </Select>
                             </div>
 
-                            {/* Company Name Filter */}
+                            {/* Partner Filter */}
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">회사명</label>
-                                <Input
-                                    placeholder="입력하세요"
-                                    className="w-full h-9 text-sm border-gray-300"
-                                    value={filters.first_name}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, first_name: e.target.value }))}
-                                />
-                            </div>
-
-                            {/* Team Leader Name Filter */}
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">팀장명</label>
-                                <Input
-                                    placeholder="입력하세요"
-                                    className="w-full h-9 text-sm border-gray-300"
-                                    value={filters.last_name}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, last_name: e.target.value }))}
-                                />
-                            </div>
-
-                            {/* Email Filter */}
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">이메일</label>
-                                <Input
-                                    placeholder="입력하세요"
-                                    className="w-full h-9 text-sm border-gray-300"
-                                    value={filters.email}
-                                    onChange={(e) => setFilters(prev => ({ ...prev, email: e.target.value }))}
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">파트너 검색</label>
+                                <PartnerCombobox
+                                    value={filters.partnerId}
+                                    onChange={(val) => setFilters(prev => ({ ...prev, partnerId: val }))}
+                                    placeholder="파트너 선택 (회사명/팀장명/활동지역)"
                                 />
                             </div>
                         </div>
@@ -367,7 +353,7 @@ export default function UserListPage() {
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
                 <div className="p-3 border-b flex flex-col sm:flex-row justify-between items-center gap-2 bg-gray-50/50">
                     <div className="text-sm font-medium text-gray-600">
-                        관리자 정보 <span className="mx-2 text-gray-300">|</span> 총 <span className="text-blue-600 font-bold">{users.length}</span> 건
+                        관리자 정보 <span className="mx-2 text-gray-300">|</span> 총 <span className="text-blue-600 font-bold">{totalCount}</span> 건
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <Button
@@ -411,7 +397,7 @@ export default function UserListPage() {
                                 <TableHead className="text-center">권한그룹명</TableHead>
                                 <TableHead className="text-center">회사명</TableHead>
                                 <TableHead className="text-center">팀장명</TableHead>
-                                <TableHead className="text-center">이메일</TableHead>
+                                <TableHead className="text-center">활동지역</TableHead>
                                 <TableHead className="text-center">부서정보</TableHead>
                                 <TableHead className="text-center">등록상태</TableHead>
                                 <TableHead className="text-center">마지막 접속일시</TableHead>
@@ -450,7 +436,7 @@ export default function UserListPage() {
                                         <TableCell className="text-center">{user.role?.name || '-'}</TableCell>
                                         <TableCell className="text-center font-medium text-blue-600">{user.first_name || '-'}</TableCell>
                                         <TableCell className="text-center">{user.last_name || '-'}</TableCell>
-                                        <TableCell className="text-center">{user.email}</TableCell>
+                                        <TableCell className="text-center">{userDetailsMap[user.id]?.actv_rgon || '-'}</TableCell>
                                         <TableCell className="text-center">{user.title || '-'}</TableCell>
                                         <TableCell className="text-center">
                                             {userDetailsMap[user.id] ? (
@@ -467,6 +453,71 @@ export default function UserListPage() {
                             )}
                         </TableBody>
                     </Table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="p-3 border-t flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Size</span>
+                        <select
+                            className="text-xs border border-gray-300 rounded px-1 py-1 outline-none focus:border-blue-500"
+                            value={pagination.pageSize}
+                            onChange={(e) => {
+                                setPagination(prev => ({ ...prev, pageSize: Number(e.target.value), pageIndex: 1 }));
+                            }}
+                        >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <div className="flex gap-1">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handlePageChange(1)}
+                                disabled={pagination.pageIndex === 1}
+                            >
+                                <ChevronsLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handlePageChange(pagination.pageIndex - 1)}
+                                disabled={pagination.pageIndex === 1}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <span className="text-sm font-medium text-gray-600">
+                            Page {pagination.pageIndex} of {Math.ceil(totalCount / pagination.pageSize) || 1}
+                        </span>
+                        <div className="flex gap-1">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handlePageChange(pagination.pageIndex + 1)}
+                                disabled={pagination.pageIndex >= Math.ceil(totalCount / pagination.pageSize)}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handlePageChange(Math.ceil(totalCount / pagination.pageSize))}
+                                disabled={pagination.pageIndex >= Math.ceil(totalCount / pagination.pageSize)}
+                            >
+                                <ChevronsRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
