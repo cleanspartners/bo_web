@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import client from '@/lib/directus';
-import { readItems, aggregate, updateItems } from '@directus/sdk';
+import { readItems, aggregate, updateItems, updateItem } from '@directus/sdk';
 import {
     Table,
     TableBody,
@@ -31,6 +31,7 @@ import * as XLSX from 'xlsx';
 import OrderDetailModal from '../components/OrderDetailModal';
 import OrderImportModal from '../components/OrderImportModal';
 import PartnerCombobox from '../components/PartnerCombobox';
+import ChannelCombobox from '@/features/channels/components/ChannelCombobox';
 import { Checkbox } from "@/components/ui/checkbox";
 
 import { useOrderStatuses } from '../hooks/useOrderStatuses';
@@ -77,6 +78,9 @@ export default function OrderListPage() {
     // Bulk Update State
     const [isBulkUpdateOpen, setIsBulkUpdateOpen] = useState(false);
     const [bulkUpdatePartnerId, setBulkUpdatePartnerId] = useState('');
+
+    const [isBulkChannelUpdateOpen, setIsBulkChannelUpdateOpen] = useState(false);
+    const [bulkUpdateChannelId, setBulkUpdateChannelId] = useState('');
 
 
 
@@ -293,22 +297,51 @@ export default function OrderListPage() {
     // 일괄 파트너 변경
     const handleBulkUpdatePartner = async () => {
         if (!bulkUpdatePartnerId) {
-            alert("변경할 파트너를 선택해주세요.");
+            alert('변경할 파트너를 선택해주세요.');
             return;
         }
 
+        if (!window.confirm(`선택한 ${selectedRows.length}개의 주문 파트너를 변경하시겠습니까?`)) return;
+
         try {
-            await client.request(updateItems('ord_mstr', selectedRows, {
-                partner: bulkUpdatePartnerId
-            }));
-            alert("파트너가 변경되었습니다.");
+            await Promise.all(selectedRows.map(id =>
+                client.request(updateItem('ord_mstr', id, {
+                    partner: bulkUpdatePartnerId
+                }))
+            ));
+            alert('파트너 변경이 완료되었습니다.');
             setIsBulkUpdateOpen(false);
             setBulkUpdatePartnerId('');
             fetchOrders();
             setSelectedRows([]);
         } catch (error) {
-            console.error("파트너 변경 실패:", error);
-            alert("파트너 변경 중 오류가 발생했습니다.");
+            console.error('파트너 일괄 변경 실패:', error);
+            alert('파트너 변경 중 오류가 발생했습니다.');
+        }
+    };
+
+    const handleBulkUpdateChannel = async () => {
+        if (!bulkUpdateChannelId) {
+            alert('변경할 채널을 선택해주세요.');
+            return;
+        }
+
+        if (!window.confirm(`선택한 ${selectedRows.length}개의 주문 채널을 변경하시겠습니까?`)) return;
+
+        try {
+            await Promise.all(selectedRows.map(id =>
+                client.request(updateItem('ord_mstr', id, {
+                    channel_name: bulkUpdateChannelId
+                }))
+            ));
+            alert('채널 변경이 완료되었습니다.');
+            setIsBulkChannelUpdateOpen(false);
+            setBulkUpdateChannelId('');
+            fetchOrders();
+            setSelectedRows([]);
+        } catch (error) {
+            console.error('채널 일괄 변경 실패:', error);
+            alert('채널 변경 중 오류가 발생했습니다.');
         }
     };
 
@@ -494,6 +527,15 @@ export default function OrderListPage() {
                             disabled={selectedRows.length === 0}
                         >
                             파트너 일괄 변경
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto h-8 text-xs bg-indigo-500 hover:bg-indigo-600 text-white border-transparent"
+                            onClick={() => setIsBulkChannelUpdateOpen(true)}
+                            disabled={selectedRows.length === 0}
+                        >
+                            채널 일괄 변경
                         </Button>
                         <Button
                             size="sm"
@@ -709,6 +751,28 @@ export default function OrderListPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsBulkUpdateOpen(false)}>취소</Button>
                         <Button onClick={handleBulkUpdatePartner} className="bg-blue-600 hover:bg-blue-700">변경하기</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isBulkChannelUpdateOpen} onOpenChange={setIsBulkChannelUpdateOpen}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>채널 일괄 변경</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <label className="block text-xs font-semibold text-gray-600 mb-2">변경할 채널 선택</label>
+                        <ChannelCombobox
+                            value={bulkUpdateChannelId}
+                            onChange={(val) => setBulkUpdateChannelId(val)}
+                        />
+                        <p className="text-xs text-gray-500 mt-2">
+                            선택한 {selectedRows.length}개의 주문에 대해 채널을 변경합니다.
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsBulkChannelUpdateOpen(false)}>취소</Button>
+                        <Button onClick={handleBulkUpdateChannel} className="bg-indigo-600 hover:bg-indigo-700">변경하기</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

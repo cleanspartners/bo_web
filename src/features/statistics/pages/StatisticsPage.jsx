@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import client from '@/lib/directus';
-import { readItems } from '@directus/sdk';
+import { readItems, aggregate } from '@directus/sdk';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell, LineChart, Line
@@ -86,18 +86,52 @@ export default function StatisticsPage() {
     const PaginationTable = ({ data, columns, defaultItemsPerPage = 10, emptyMessage = "데이터가 없습니다.", footer }) => {
         const [itemsPerPage, setItemsPerPage] = useState(defaultItemsPerPage);
         const [currentPage, setCurrentPage] = useState(1);
+        const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
         const totalPages = Math.ceil(data.length / itemsPerPage);
 
+        // Sort data
+        const sortedData = useMemo(() => {
+            if (!sortConfig.key) return data;
+
+            const sorted = [...data].sort((a, b) => {
+                const aVal = a[sortConfig.key];
+                const bVal = b[sortConfig.key];
+
+                if (aVal === bVal) return 0;
+                if (aVal === null || aVal === undefined) return 1;
+                if (bVal === null || bVal === undefined) return -1;
+
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+
+                return sortConfig.direction === 'asc'
+                    ? String(aVal).localeCompare(String(bVal))
+                    : String(bVal).localeCompare(String(aVal));
+            });
+
+            return sorted;
+        }, [data, sortConfig]);
+
         const currentData = useMemo(() => {
             const start = (currentPage - 1) * itemsPerPage;
-            return data.slice(start, start + itemsPerPage);
-        }, [data, currentPage, itemsPerPage]);
+            return sortedData.slice(start, start + itemsPerPage);
+        }, [sortedData, currentPage, itemsPerPage]);
 
         // Reset to page 1 if data changes significantly or page size changes
         useEffect(() => {
             setCurrentPage(1);
         }, [data.length, itemsPerPage]);
+
+        const handleSort = (accessor) => {
+            if (!accessor) return; // Skip if column is not sortable
+
+            setSortConfig(prev => ({
+                key: accessor,
+                direction: prev.key === accessor && prev.direction === 'asc' ? 'desc' : 'asc'
+            }));
+        };
 
         return (
             <div className="rounded-md border border-gray-200 overflow-hidden mt-4 flex flex-col bg-white">
@@ -121,8 +155,19 @@ export default function StatisticsPage() {
                         <thead className="bg-gray-100 text-gray-700 font-medium">
                             <tr>
                                 {columns.map((col, idx) => (
-                                    <th key={idx} className={`px-4 py-3 border-b ${col.className || ''} ${col.width || 'w-auto'}`}>
-                                        {col.header}
+                                    <th
+                                        key={idx}
+                                        className={`px-4 py-3 border-b ${col.className || ''} ${col.width || 'w-auto'} ${col.accessor ? 'cursor-pointer hover:bg-gray-200 select-none' : ''}`}
+                                        onClick={() => handleSort(col.accessor)}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            {col.header}
+                                            {col.accessor && sortConfig.key === col.accessor && (
+                                                <span className="text-blue-600">
+                                                    {sortConfig.direction === 'asc' ? '↑' : '↓'}
+                                                </span>
+                                            )}
+                                        </div>
                                     </th>
                                 ))}
                             </tr>
@@ -190,6 +235,8 @@ export default function StatisticsPage() {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
 
+    const [activeTab, setActiveTab] = useState('partner');
+
     useEffect(() => {
         fetchData();
     }, []);
@@ -225,199 +272,479 @@ export default function StatisticsPage() {
 
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Filter orders by search term (Client-side)
-    const filteredOrders = useMemo(() => {
-        if (!searchTerm) return orders;
-        const lowerTerm = searchTerm.toLowerCase();
-        return orders.filter(order => {
-            const partnerName = order.partner?.first_name || '';
-            const teamLeader = order.partner?.last_name || '';
-            const address = order.address || '';
-            const channel = order.channel_name?.channel_name || '';
-            return (
-                partnerName.toLowerCase().includes(lowerTerm) ||
-                teamLeader.toLowerCase().includes(lowerTerm) ||
-                address.toLowerCase().includes(lowerTerm) ||
-                channel.toLowerCase().includes(lowerTerm)
-            );
-        });
-    }, [orders, searchTerm]);
-
 
     // --- Aggregation Logic ---
 
-    // 1. Partner (Company) Stats
-    const partnerStats = useMemo(() => {
-        const stats = {};
-        filteredOrders.forEach(order => {
-            const companyName = order.partner?.first_name || '미지정';
-            const teamLeader = order.partner?.last_name || '';
-            const region = normalizeRegion(order.address);
+    // 1. Partner (Company) Stats - Server-side aggregate
+    const [partnerStats, setPartnerStats] = useState([]);
 
-            const key = `${companyName}(${teamLeader})`;
+    const fetchPartnerStats = async () => {
+        try {
+            const endDateObj = new Date(dateRange.endDate);
+            endDateObj.setDate(endDateObj.getDate() + 1);
+            const nextDay = endDateObj.toISOString().split('T')[0];
 
-            if (!stats[key]) {
-                stats[key] = {
-                    name: key,
-                    companyName,
-                    teamLeader,
-                    count: 0,
-                    amount: 0,
-                    settlementAmount: 0,
-                    commissionAmount: 0,
-                    regions: new Set()
-                };
+            // Step 1: Aggregate by partner (ID)
+            const partnerAggResponse = await client.request(
+                aggregate('ord_mstr', {
+                    aggregate: {
+                        count: '*',
+                        sum: ['order_price', 'rel_settlement_amount', 'rel_commission_amount']
+                    },
+                    groupBy: ['partner'],
+                    query: {
+                        filter: {
+                            _and: [
+                                { del_yn: { _neq: 'Y' } },
+                                { order_date: { _gte: dateRange.startDate } },
+                                { order_date: { _lt: nextDay } }
+                            ]
+                        }
+                    }
+                })
+            );
+
+            // Step 2: Get unique partner IDs
+            const partnerIds = (partnerAggResponse || [])
+                .map(item => item.partner)
+                .filter(id => id != null);
+
+            // Step 3: Fetch partner details from ord_mstr (with partner relation)
+            let partnerMap = {};
+            if (partnerIds.length > 0) {
+                const ordersWithPartner = await client.request(
+                    readItems('ord_mstr', {
+                        fields: ['partner.id', 'partner.first_name', 'partner.last_name'],
+                        filter: {
+                            _and: [
+                                { del_yn: { _neq: 'Y' } },
+                                { order_date: { _gte: dateRange.startDate } },
+                                { order_date: { _lt: nextDay } },
+                                { partner: { _in: partnerIds } }
+                            ]
+                        },
+                        limit: -1
+                    })
+                );
+
+                // Create unique partner map
+                const uniquePartners = new Map();
+                (ordersWithPartner || []).forEach(order => {
+                    if (order.partner && !uniquePartners.has(order.partner.id)) {
+                        uniquePartners.set(order.partner.id, {
+                            companyName: order.partner.first_name,
+                            teamLeader: order.partner.last_name
+                        });
+                    }
+                });
+                partnerMap = Object.fromEntries(uniquePartners);
             }
-            stats[key].count += 1;
-            stats[key].amount += Number(order.order_price || 0);
-            stats[key].settlementAmount += Number(order.rel_settlement_amount || 0);
-            stats[key].commissionAmount += Number(order.rel_commission_amount || 0);
-            if (region) stats[key].regions.add(region);
-        });
 
-        return Object.values(stats)
-            .map(item => ({
-                ...item,
-                regionDisplay: Array.from(item.regions).join(', ') // Convert Set to String for display
-            }))
-            .sort((a, b) => b.amount - a.amount);
-    }, [filteredOrders]);
+            // Step 4: Fetch addresses for region aggregation (minimal data)
+            const partnerRegions = {};
+            if (partnerIds.length > 0) {
+                const addressResponse = await client.request(
+                    readItems('ord_mstr', {
+                        fields: ['partner', 'address'],
+                        filter: {
+                            _and: [
+                                { del_yn: { _neq: 'Y' } },
+                                { order_date: { _gte: dateRange.startDate } },
+                                { order_date: { _lt: nextDay } },
+                                { partner: { _in: partnerIds } }
+                            ]
+                        },
+                        limit: -1
+                    })
+                );
 
-    // 2. Region Stats (Address Parsing) - For Chart (Region only)
-    const regionStats = useMemo(() => {
-        const stats = {};
-        filteredOrders.forEach(order => {
-            const region = normalizeRegion(order.address);
-
-            if (!stats[region]) {
-                stats[region] = { name: region, count: 0, amount: 0 };
+                // Aggregate regions by partner
+                (addressResponse || []).forEach(order => {
+                    const partnerId = order.partner;
+                    const region = normalizeRegion(order.address);
+                    if (!partnerRegions[partnerId]) {
+                        partnerRegions[partnerId] = new Set();
+                    }
+                    if (region) partnerRegions[partnerId].add(region);
+                });
             }
-            stats[region].count += 1;
-            stats[region].amount += Number(order.order_price || 0);
-        });
-        return Object.values(stats).sort((a, b) => b.count - a.count);
-    }, [filteredOrders]);
 
-    // 2-1. Region + Partner Stats - For Table (Detailed)
-    const regionPartnerStats = useMemo(() => {
-        const stats = {};
-        filteredOrders.forEach(order => {
-            const region = normalizeRegion(order.address);
-            const partnerName = order.partner?.first_name || '미지정';
-            const teamLeader = order.partner?.last_name || '';
-            const key = `${region}|${partnerName}|${teamLeader}`;
+            // Step 5: Map IDs to names and combine data
+            const partnerData = (partnerAggResponse || [])
+                .map(item => {
+                    const partner = partnerMap[item.partner] || { companyName: '미지정', teamLeader: '' };
+                    const regions = partnerRegions[item.partner] || new Set();
+                    const name = `${partner.companyName}(${partner.teamLeader})`;
 
-            if (!stats[key]) {
-                stats[key] = {
-                    region: region,
-                    partnerName: partnerName,
-                    teamLeader: teamLeader,
-                    count: 0,
-                    amount: 0,
-                    settlementAmount: 0,
-                    commissionAmount: 0
-                };
+                    return {
+                        name,
+                        companyName: partner.companyName,
+                        teamLeader: partner.teamLeader,
+                        count: Number(item.count || 0),
+                        amount: Number(item.sum?.order_price || 0),
+                        settlementAmount: Number(item.sum?.rel_settlement_amount || 0),
+                        commissionAmount: Number(item.sum?.rel_commission_amount || 0),
+                        regionDisplay: Array.from(regions).join(', ')
+                    };
+                })
+                .sort((a, b) => b.amount - a.amount);
+
+            setPartnerStats(partnerData);
+
+        } catch (error) {
+            console.error('파트너별 통계 로드 실패:', error);
+        }
+    };
+
+    // 파트너별 탭은 기본 탭이므로 페이지 로드 시 조회
+    useEffect(() => {
+        fetchPartnerStats();
+    }, [dateRange]);
+
+    // 파트너별 검색 필터링 (클라이언트 측)
+    const filteredPartnerStats = useMemo(() => {
+        if (!searchTerm || activeTab !== 'partner') return partnerStats;
+        const lowerTerm = searchTerm.toLowerCase();
+        return partnerStats.filter(stat =>
+            stat.companyName.toLowerCase().includes(lowerTerm) ||
+            stat.teamLeader.toLowerCase().includes(lowerTerm) ||
+            stat.regionDisplay.toLowerCase().includes(lowerTerm)
+        );
+    }, [partnerStats, searchTerm, activeTab]);
+
+    // 2. Region Stats - Chart & Table (Server-side fetch with minimal data)
+    const [regionStats, setRegionStats] = useState([]);
+    const [regionPartnerStats, setRegionPartnerStats] = useState([]);
+
+    const fetchRegionStats = async () => {
+        try {
+            const endDateObj = new Date(dateRange.endDate);
+            endDateObj.setDate(endDateObj.getDate() + 1);
+            const nextDay = endDateObj.toISOString().split('T')[0];
+
+            // Fetch minimal data (address, partner, amounts)
+            const regionResponse = await client.request(
+                readItems('ord_mstr', {
+                    fields: [
+                        'address',
+                        'partner.first_name',
+                        'partner.last_name',
+                        'order_price',
+                        'rel_settlement_amount',
+                        'rel_commission_amount'
+                    ],
+                    filter: {
+                        _and: [
+                            { del_yn: { _neq: 'Y' } },
+                            { order_date: { _gte: dateRange.startDate } },
+                            { order_date: { _lt: nextDay } }
+                        ]
+                    },
+                    limit: -1
+                })
+            );
+
+            // Client-side aggregation by region (for chart)
+            const regionMap = {};
+            (regionResponse || []).forEach(order => {
+                const region = normalizeRegion(order.address);
+                if (!regionMap[region]) {
+                    regionMap[region] = { name: region, count: 0, amount: 0 };
+                }
+                regionMap[region].count += 1;
+                regionMap[region].amount += Number(order.order_price || 0);
+            });
+
+            const regionData = Object.values(regionMap)
+                .sort((a, b) => b.count - a.count);
+            setRegionStats(regionData);
+
+            // Client-side aggregation by region + partner (for table)
+            const regionPartnerMap = {};
+            (regionResponse || []).forEach(order => {
+                const region = normalizeRegion(order.address);
+                const partnerName = order.partner?.first_name || '미지정';
+                const teamLeader = order.partner?.last_name || '';
+                const key = `${region}|${partnerName}|${teamLeader}`;
+
+                if (!regionPartnerMap[key]) {
+                    regionPartnerMap[key] = {
+                        region,
+                        partnerName,
+                        teamLeader,
+                        count: 0,
+                        amount: 0,
+                        settlementAmount: 0,
+                        commissionAmount: 0
+                    };
+                }
+                regionPartnerMap[key].count += 1;
+                regionPartnerMap[key].amount += Number(order.order_price || 0);
+                regionPartnerMap[key].settlementAmount += Number(order.rel_settlement_amount || 0);
+                regionPartnerMap[key].commissionAmount += Number(order.rel_commission_amount || 0);
+            });
+
+            const regionPartnerData = Object.values(regionPartnerMap)
+                .sort((a, b) => {
+                    if (a.region !== b.region) return a.region.localeCompare(b.region);
+                    return b.amount - a.amount;
+                });
+            setRegionPartnerStats(regionPartnerData);
+
+        } catch (error) {
+            console.error('지역별 통계 로드 실패:', error);
+        }
+    };
+
+    // 지역별 탭 활성화 시에만 조회
+    useEffect(() => {
+        if (activeTab === 'region') {
+            fetchRegionStats();
+        }
+    }, [activeTab, dateRange]);
+
+    // 지역별 검색 필터링 (클라이언트 측)
+    const filteredRegionPartnerStats = useMemo(() => {
+        if (!searchTerm || activeTab !== 'region') return regionPartnerStats;
+        const lowerTerm = searchTerm.toLowerCase();
+        return regionPartnerStats.filter(stat =>
+            stat.region.toLowerCase().includes(lowerTerm) ||
+            stat.partnerName.toLowerCase().includes(lowerTerm) ||
+            stat.teamLeader.toLowerCase().includes(lowerTerm)
+        );
+    }, [regionPartnerStats, searchTerm, activeTab]);
+
+    const filteredRegionStats = useMemo(() => {
+        if (!searchTerm || activeTab !== 'region') return regionStats;
+
+        // 파트너별 필터링 결과에서 지역별로 재집계
+        const regionMap = {};
+        filteredRegionPartnerStats.forEach(stat => {
+            if (!regionMap[stat.region]) {
+                regionMap[stat.region] = { name: stat.region, count: 0, amount: 0 };
             }
-            stats[key].count += 1;
-            stats[key].amount += Number(order.order_price || 0);
-            stats[key].settlementAmount += Number(order.rel_settlement_amount || 0);
-            stats[key].commissionAmount += Number(order.rel_commission_amount || 0);
+            regionMap[stat.region].count += stat.count;
+            regionMap[stat.region].amount += stat.amount;
         });
-        return Object.values(stats).sort((a, b) => {
-            if (b.region !== a.region) return a.region.localeCompare(b.region);
-            return b.amount - a.amount;
-        });
-    }, [filteredOrders]);
 
-    // 3. Channel Stats - Chart
-    const channelStats = useMemo(() => {
-        const stats = {};
-        filteredOrders.forEach(order => {
-            const channel = order.channel_name?.channel_name || '미지정';
-            if (!stats[channel]) {
-                stats[channel] = { name: channel, value: 0 };
+        return Object.values(regionMap).sort((a, b) => b.count - a.count);
+    }, [regionStats, filteredRegionPartnerStats, searchTerm, activeTab]);
+
+
+
+    // 3. Channel Stats - Chart & Table (Server-side aggregate)
+    const [channelStats, setChannelStats] = useState([]);
+    const [channelPartnerStats, setChannelPartnerStats] = useState([]);
+
+    const fetchChannelStats = async () => {
+        try {
+            const endDateObj = new Date(dateRange.endDate);
+            endDateObj.setDate(endDateObj.getDate() + 1);
+            const nextDay = endDateObj.toISOString().split('T')[0];
+
+            // Step 1: Aggregate by channel_name (ID) - 서버 측 집계
+            const channelAggResponse = await client.request(
+                aggregate('ord_mstr', {
+                    aggregate: {
+                        count: '*'
+                    },
+                    groupBy: ['channel_name'],
+                    query: {
+                        filter: {
+                            _and: [
+                                { del_yn: { _neq: 'Y' } },
+                                { order_date: { _gte: dateRange.startDate } },
+                                { order_date: { _lt: nextDay } }
+                            ]
+                        }
+                    }
+                })
+            );
+
+            // Step 2: 채널 ID 목록 추출
+            const channelIds = (channelAggResponse || [])
+                .map(item => item.channel_name)
+                .filter(id => id != null);
+
+            // Step 3: 채널명 조회 및 매핑
+            let channelNameMap = {};
+            if (channelIds.length > 0) {
+                const channelNames = await client.request(
+                    readItems('chnnl_mstr', {
+                        fields: ['id', 'channel_name'],
+                        filter: {
+                            id: { _in: channelIds }
+                        },
+                        limit: -1
+                    })
+                );
+                channelNameMap = Object.fromEntries(
+                    (channelNames || []).map(ch => [ch.id, ch.channel_name])
+                );
             }
-            stats[channel].value += 1;
-        });
-        return Object.values(stats).sort((a, b) => b.value - a.value);
-    }, [filteredOrders]);
 
-    // 3-1. Channel + Region + Partner Stats - Table
-    const channelPartnerStats = useMemo(() => {
-        const stats = {};
-        filteredOrders.forEach(order => {
-            const channel = order.channel_name?.channel_name || '미지정';
-            // Region is removed from grouping key to simplify the view
-            const partnerName = order.partner?.first_name || '미지정';
-            const teamLeader = order.partner?.last_name || '';
+            // Step 4: ID를 이름으로 변환
+            const channelData = (channelAggResponse || [])
+                .map(item => ({
+                    name: channelNameMap[item.channel_name] || '미지정',
+                    value: Number(item.count || 0)
+                }))
+                .sort((a, b) => b.value - a.value);
 
-            const key = `${channel}|${partnerName}|${teamLeader}`;
+            setChannelStats(channelData);
 
-            if (!stats[key]) {
-                stats[key] = {
-                    channel,
-                    partnerName,
-                    teamLeader,
-                    count: 0,
-                    amount: 0,
-                    settlementAmount: 0,
-                    commissionAmount: 0
-                };
-            }
-            stats[key].count += 1;
-            stats[key].amount += Number(order.order_price || 0);
-            stats[key].settlementAmount += Number(order.rel_settlement_amount || 0);
-            stats[key].commissionAmount += Number(order.rel_commission_amount || 0);
-        });
-        // Sort: Channel -> Amount
-        return Object.values(stats).sort((a, b) => {
-            if (a.channel !== b.channel) return a.channel.localeCompare(b.channel);
-            return b.amount - a.amount;
-        });
-    }, [filteredOrders]);
+            // Fetch channel table data (with amounts)
+            const channelTableResponse = await client.request(
+                readItems('ord_mstr', {
+                    fields: [
+                        'channel_name.channel_name',
+                        'order_price',
+                        'rel_settlement_amount',
+                        'rel_commission_amount'
+                    ],
+                    filter: {
+                        _and: [
+                            { del_yn: { _neq: 'Y' } },
+                            { order_date: { _gte: dateRange.startDate } },
+                            { order_date: { _lt: nextDay } }
+                        ]
+                    },
+                    limit: -1
+                })
+            );
+
+            // Client-side aggregation by channel
+            const channelTableMap = {};
+            (channelTableResponse || []).forEach(order => {
+                const channel = order.channel_name?.channel_name || '미지정';
+                if (!channelTableMap[channel]) {
+                    channelTableMap[channel] = {
+                        channel,
+                        count: 0,
+                        amount: 0,
+                        settlementAmount: 0,
+                        commissionAmount: 0
+                    };
+                }
+                channelTableMap[channel].count += 1;
+                channelTableMap[channel].amount += Number(order.order_price || 0);
+                channelTableMap[channel].settlementAmount += Number(order.rel_settlement_amount || 0);
+                channelTableMap[channel].commissionAmount += Number(order.rel_commission_amount || 0);
+            });
+
+            const channelTableData = Object.values(channelTableMap)
+                .sort((a, b) => b.amount - a.amount);
+
+            setChannelPartnerStats(channelTableData);
+
+        } catch (error) {
+            console.error("채널별 통계 로드 실패:", error);
+        }
+    };
+
+    // 채널별 탭 활성화 시에만 조회
+    useEffect(() => {
+        if (activeTab === 'channel') {
+            fetchChannelStats();
+        }
+    }, [activeTab, dateRange]);
 
     // 4. Period Stats (Daily/Monthly) - Chart & Table
     const [periodType, setPeriodType] = useState('daily'); // 'daily' | 'monthly'
+    const [periodStats, setPeriodStats] = useState([]);
 
-    const periodStats = useMemo(() => {
-        const stats = {};
-        filteredOrders.forEach(order => {
-            if (!order.order_date) return;
+    const fetchPeriodStats = async () => {
+        try {
+            const endDateObj = new Date(dateRange.endDate);
+            endDateObj.setDate(endDateObj.getDate() + 1);
+            const nextDay = endDateObj.toISOString().split('T')[0];
 
-            let dateKey = '';
-            if (periodType === 'daily') {
-                dateKey = order.order_date.split('T')[0];
-            } else {
-                // Monthly: YYYY-MM
-                dateKey = order.order_date.split('T')[0].substring(0, 7);
+            const response = await client.request(
+                aggregate('ord_mstr', {
+                    aggregate: {
+                        count: '*',
+                        sum: [
+                            'order_price',
+                            'rel_settlement_amount',
+                            'rel_commission_amount'
+                        ]
+                    },
+                    groupBy: ['order_date'],
+                    query: {   // 🔥 여기 중요
+                        filter: {
+                            _and: [
+                                { del_yn: { _neq: 'Y' } },
+                                { order_date: { _gte: dateRange.startDate } },
+                                { order_date: { _lt: nextDay } }
+                            ]
+                        }
+                    }
+                })
+            );
+
+            const dailyStatsMap = {};
+
+            (response || []).forEach(item => {
+                if (!item.order_date) return;
+
+                const dateKey = item.order_date.split('T')[0]; // YYYY-MM-DD
+
+                if (!dailyStatsMap[dateKey]) {
+                    dailyStatsMap[dateKey] = {
+                        date: dateKey,
+                        count: 0,
+                        amount: 0,
+                        settlementAmount: 0,
+                        commissionAmount: 0
+                    };
+                }
+
+                dailyStatsMap[dateKey].count += Number(item.count || 0);
+                dailyStatsMap[dateKey].amount += Number(item.sum?.order_price || 0);
+                dailyStatsMap[dateKey].settlementAmount += Number(item.sum?.rel_settlement_amount || 0);
+                dailyStatsMap[dateKey].commissionAmount += Number(item.sum?.rel_commission_amount || 0);
+            });
+
+            let stats = Object.values(dailyStatsMap);
+
+            // 월별 집계 처리
+            if (periodType === 'monthly') {
+                const monthlyStatsMap = {};
+                stats.forEach(stat => {
+                    const monthKey = stat.date.substring(0, 7); // YYYY-MM
+                    if (!monthlyStatsMap[monthKey]) {
+                        monthlyStatsMap[monthKey] = {
+                            date: monthKey,
+                            count: 0,
+                            amount: 0,
+                            settlementAmount: 0,
+                            commissionAmount: 0
+                        };
+                    }
+                    monthlyStatsMap[monthKey].count += stat.count;
+                    monthlyStatsMap[monthKey].amount += stat.amount;
+                    monthlyStatsMap[monthKey].settlementAmount += stat.settlementAmount;
+                    monthlyStatsMap[monthKey].commissionAmount += stat.commissionAmount;
+                });
+                stats = Object.values(monthlyStatsMap);
             }
 
-            if (!stats[dateKey]) {
-                stats[dateKey] = {
-                    date: dateKey,
-                    count: 0,
-                    amount: 0,
-                    settlementAmount: 0,
-                    commissionAmount: 0
-                };
-            }
-            stats[dateKey].count += 1;
-            stats[dateKey].amount += Number(order.order_price || 0);
-            stats[dateKey].settlementAmount += Number(order.rel_settlement_amount || 0);
-            stats[dateKey].commissionAmount += Number(order.rel_commission_amount || 0);
-        });
-        return Object.values(stats).sort((a, b) => a.date.localeCompare(b.date));
-    }, [filteredOrders, periodType]);
-    // Correction: I should be careful not to break the Chart which relies on periodStats.
-    // I need to fix the 'key' vs 'dateKey' typo in my thought process.
+            stats.sort((a, b) => a.date.localeCompare(b.date)); // 그래프용 오름차순 (오래된 날짜부터)
 
-    // Let's refine the replacement. I will Delete periodPartnerStats as it's no longer needed if we use periodStats for the table.
-    // And I will update periodStats to include settlement/commission.
+            setPeriodStats(stats);
 
-    // Actually, Chart needs ASC. Table users might prefer DESC (latest first). 
-    // I will keep existing sort (ASC) for now to avoid breaking chart. Users can page to end? Or I can render it Reversed in the table? 
-    // Let's stick to ASC as per existing chart logic, or better, `periodStats` should be ASC.
+        } catch (error) {
+            console.error("기간별 통계 로드 실패:", error);
+        }
+    };
 
+
+    // 기간별 탭 활성화 시에만 조회
+    useEffect(() => {
+        if (activeTab === 'date') {
+            fetchPeriodStats();
+        }
+    }, [activeTab, dateRange, periodType]);
 
 
     return (
@@ -448,9 +775,16 @@ export default function StatisticsPage() {
                             <input
                                 type="text"
                                 placeholder="지역, 파트너, 채널 검색..."
-                                className="pl-9 pr-4 py-2 w-full text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className={`pl-9 pr-4 py-2 w-full text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${activeTab === 'channel' || activeTab === 'date' ? 'bg-gray-100 cursor-not-allowed' : ''
+                                    }`}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && activeTab === 'partner') {
+                                        fetchData();
+                                    }
+                                }}
+                                disabled={activeTab === 'channel' || activeTab === 'date'}
                             />
                         </div>
                     </div>
@@ -460,13 +794,19 @@ export default function StatisticsPage() {
                     </Button>
                 </div>
                 <div className="text-sm text-gray-500 whitespace-nowrap">
-                    총 <strong className="text-blue-600">{filteredOrders.length}</strong> 건 / 전체 {orders.length} 건
+                    총 <strong className="text-blue-600">{
+                        activeTab === 'partner' ? filteredPartnerStats.length :
+                            activeTab === 'region' ? filteredRegionPartnerStats.length :
+                                activeTab === 'channel' ? channelStats.length :
+                                    activeTab === 'date' ? periodStats.length :
+                                        0
+                    }</strong> 건
                 </div>
             </div>
 
 
             {/* Dashboard Content */}
-            <Tabs defaultValue="partner" className="space-y-4">
+            <Tabs defaultValue="partner" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                 <TabsList className="bg-white p-1 border border-gray-200 rounded-lg">
                     <TabsTrigger value="partner">파트너별</TabsTrigger>
                     <TabsTrigger value="region">지역별</TabsTrigger>
@@ -501,7 +841,7 @@ export default function StatisticsPage() {
                             </CardHeader>
                             <CardContent className="h-[300px]">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={partnerStats.slice(0, 10)} layout="vertical" margin={{ left: 50 }}>
+                                    <BarChart data={filteredPartnerStats.slice(0, 10)} layout="vertical" margin={{ left: 50 }}>
                                         <CartesianGrid strokeDasharray="3 3" />
                                         <XAxis type="number" />
                                         <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
@@ -521,7 +861,7 @@ export default function StatisticsPage() {
                         </CardHeader>
                         <CardContent>
                             <PaginationTable
-                                data={partnerStats}
+                                data={filteredPartnerStats}
                                 columns={[
                                     { header: '순위', accessor: 'rank', className: 'text-center', cellClassName: 'text-center', width: 'w-[60px]', render: (_, idx) => <span className="text-gray-500">{idx + 1}</span> },
                                     { header: '파트너명 (팀장)', accessor: 'name', className: 'text-left', cellClassName: 'text-left', width: 'w-[20%]', render: (row) => <span className="font-medium text-gray-900">{row.name}</span> },
@@ -534,10 +874,10 @@ export default function StatisticsPage() {
                                 footer={
                                     <tr>
                                         <td colSpan={3} className="px-4 py-3 text-center">합계</td>
-                                        <td className="px-4 py-3 text-right">{partnerStats.reduce((sum, item) => sum + item.count, 0)}건</td>
-                                        <td className="px-4 py-3 text-right text-blue-600">{partnerStats.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}</td>
-                                        <td className="px-4 py-3 text-right text-red-600">{partnerStats.reduce((sum, item) => sum + (item.settlementAmount || 0), 0).toLocaleString()}</td>
-                                        <td className="px-4 py-3 text-right">{partnerStats.reduce((sum, item) => sum + (item.commissionAmount || 0), 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-right">{filteredPartnerStats.reduce((sum, item) => sum + item.count, 0)}건</td>
+                                        <td className="px-4 py-3 text-right text-blue-600">{filteredPartnerStats.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-right text-red-600">{filteredPartnerStats.reduce((sum, item) => sum + (item.settlementAmount || 0), 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-right">{filteredPartnerStats.reduce((sum, item) => sum + (item.commissionAmount || 0), 0).toLocaleString()}</td>
                                     </tr>
                                 }
                             />
@@ -554,10 +894,13 @@ export default function StatisticsPage() {
                         </CardHeader>
                         <CardContent className="h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={regionStats.slice(0, 20)}>
+                                <BarChart data={filteredRegionStats.slice(0, 20)}>
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-45} textAnchor="end" height={60} />
-                                    <YAxis />
+                                    <YAxis
+                                        allowDecimals={false}
+                                        domain={[0, 'auto']}
+                                    />
                                     <Tooltip />
                                     <Legend />
                                     <Bar dataKey="count" fill="#ffc658" name="주문 건수" />
@@ -566,7 +909,7 @@ export default function StatisticsPage() {
                         </CardContent>
                         <CardContent>
                             <PaginationTable
-                                data={regionPartnerStats}
+                                data={filteredRegionPartnerStats}
                                 columns={[
                                     { header: '순위', accessor: 'rank', className: 'text-center', cellClassName: 'text-center', width: 'w-[80px]', render: (_, idx) => <span className="text-gray-500">{idx + 1}</span> },
                                     { header: '지역명', accessor: 'region', className: 'text-left', cellClassName: 'text-left', width: 'w-[20%]', render: (row) => <span className="font-medium text-gray-900">{row.region}</span> },
@@ -579,10 +922,10 @@ export default function StatisticsPage() {
                                 footer={
                                     <tr>
                                         <td colSpan={3} className="px-4 py-3 text-center">합계</td>
-                                        <td className="px-4 py-3 text-right">{regionPartnerStats.reduce((sum, item) => sum + item.count, 0)}건</td>
-                                        <td className="px-4 py-3 text-right text-blue-600">{regionPartnerStats.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}</td>
-                                        <td className="px-4 py-3 text-right text-red-600">{regionPartnerStats.reduce((sum, item) => sum + (item.settlementAmount || 0), 0).toLocaleString()}</td>
-                                        <td className="px-4 py-3 text-right">{regionPartnerStats.reduce((sum, item) => sum + (item.commissionAmount || 0), 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-right">{filteredRegionPartnerStats.reduce((sum, item) => sum + item.count, 0)}건</td>
+                                        <td className="px-4 py-3 text-right text-blue-600">{filteredRegionPartnerStats.reduce((sum, item) => sum + item.amount, 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-right text-red-600">{filteredRegionPartnerStats.reduce((sum, item) => sum + (item.settlementAmount || 0), 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3 text-right">{filteredRegionPartnerStats.reduce((sum, item) => sum + (item.commissionAmount || 0), 0).toLocaleString()}</td>
                                     </tr>
                                 }
                             />
@@ -614,6 +957,7 @@ export default function StatisticsPage() {
                                         ))}
                                     </Pie>
                                     <Tooltip />
+                                    <Legend />
                                 </PieChart>
                             </ResponsiveContainer>
                         </CardContent>
@@ -621,13 +965,12 @@ export default function StatisticsPage() {
                             <PaginationTable
                                 data={channelPartnerStats}
                                 columns={[
-                                    { header: '채널', accessor: 'channel', className: 'text-left', cellClassName: 'text-left', width: 'w-[25%]', render: (row) => <span className="font-medium text-gray-900">{row.channel}</span> },
-                                    // Removed Region Column
-                                    { header: '파트너 (팀장)', accessor: 'partner', className: 'text-left', cellClassName: 'text-left', width: 'w-[30%]', render: (row) => <span className="text-gray-500">{row.partnerName} <span className='text-xs text-gray-400'>({row.teamLeader})</span></span> },
-                                    { header: '작업 건수', accessor: 'count', className: 'text-right', cellClassName: 'text-right', width: 'w-[10%]', render: (row) => <span className="text-gray-700">{row.count}건</span> },
-                                    { header: '판매금액', accessor: 'amount', className: 'text-right', cellClassName: 'text-right font-medium text-blue-600', width: 'w-[13%]', render: (row) => <span className="text-blue-600">{row.amount.toLocaleString()}</span> },
-                                    { header: '정산금액', accessor: 'settlementAmount', className: 'text-right', cellClassName: 'text-right font-medium text-red-600', width: 'w-[13%]', render: (row) => <span className="text-red-600">{row.settlementAmount?.toLocaleString()}</span> },
-                                    { header: '수수료금액', accessor: 'commissionAmount', className: 'text-right', cellClassName: 'text-right font-medium', width: 'w-[13%]', render: (row) => <span className="text-gray-900">{row.commissionAmount?.toLocaleString()}</span> },
+                                    { header: '순위', accessor: 'rank', className: 'text-center', cellClassName: 'text-center', width: 'w-[80px]', render: (_, idx) => <span className="text-gray-500">{idx + 1}</span> },
+                                    { header: '채널', accessor: 'channel', className: 'text-left', cellClassName: 'text-left', width: 'w-[30%]', render: (row) => <span className="font-medium text-gray-900">{row.channel}</span> },
+                                    { header: '작업 건수', accessor: 'count', className: 'text-right', cellClassName: 'text-right', width: 'w-[15%]', render: (row) => <span className="text-gray-700">{row.count}건</span> },
+                                    { header: '판매금액', accessor: 'amount', className: 'text-right', cellClassName: 'text-right font-medium text-blue-600', width: 'w-[18%]', render: (row) => <span className="text-blue-600">{row.amount.toLocaleString()}</span> },
+                                    { header: '정산금액', accessor: 'settlementAmount', className: 'text-right', cellClassName: 'text-right font-medium text-red-600', width: 'w-[18%]', render: (row) => <span className="text-red-600">{row.settlementAmount?.toLocaleString()}</span> },
+                                    { header: '수수료금액', accessor: 'commissionAmount', className: 'text-right', cellClassName: 'text-right font-medium', width: 'w-[18%]', render: (row) => <span className="text-gray-900">{row.commissionAmount?.toLocaleString()}</span> },
                                 ]}
                                 footer={
                                     <tr>

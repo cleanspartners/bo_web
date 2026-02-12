@@ -48,8 +48,6 @@ export default function LoginPage() {
                 fields: ['role.name']
             }));
 
-            console.log("User Data:", userData); // 디버깅용 로그
-
             // Role 이름 확인 (DB의 Administrator 역할 이름과 일치해야 함)
             // 'Administrator' 또는 '관리자' (한글) 허용
             const roleName = userData?.role?.name;
