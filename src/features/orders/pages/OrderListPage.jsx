@@ -67,8 +67,6 @@ export default function OrderListPage() {
         status: '',
         partnerName: '', // Legacy support or just use partnerId
         partnerId: '', // New ID-based filter
-        partnerName: '', // Legacy support or just use partnerId
-        partnerId: '', // New ID-based filter
         customerName: '',
         phone: '',
         address: '', // New Address filter
@@ -141,7 +139,8 @@ export default function OrderListPage() {
                         'partner.last_name',
                         'user_created.first_name',
                         'user_created.last_name',
-                        'date_created'
+                        'date_created',
+                        'cstm_memo'
                     ],
                     filter: filter._and.length > 0 ? filter : {},
                     sort: sortParam,
@@ -197,8 +196,6 @@ export default function OrderListPage() {
             startDate: getToday(),
             endDate: getOneMonthLater(),
             status: '',
-            partnerName: '',
-            partnerId: '',
             partnerName: '',
             partnerId: '',
             customerName: '',

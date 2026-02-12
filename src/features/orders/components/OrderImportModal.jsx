@@ -69,7 +69,8 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                         order_price: parseNumber(row['order_price']) || 0,
                         commission: parseNumber(row['commission']) || 0,
                         rel_settlement_amount: parseNumber(row['rel_settlement_amount']) || 0,
-                        rel_commission_amount: parseNumber(row['rel_commission_amount']) || 0
+                        rel_commission_amount: parseNumber(row['rel_commission_amount']) || 0,
+                        cstm_memo: row['cstm_memo'] || row['상담메모'] || '',
                     };
                 });
 
@@ -245,6 +246,7 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                             <TableHead className="text-right">수수료</TableHead>
                                             <TableHead className="text-right">정산금액</TableHead>
                                             <TableHead className="text-right">수수료금액</TableHead>
+                                            <TableHead>상담메모</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -259,6 +261,7 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                                 <TableCell className="text-right">{row.commission?.toLocaleString()}</TableCell>
                                                 <TableCell className="text-right">{row.rel_settlement_amount?.toLocaleString()}</TableCell>
                                                 <TableCell className="text-right">{row.rel_commission_amount?.toLocaleString()}</TableCell>
+                                                <TableCell>{row.cstm_memo}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>

@@ -4,6 +4,7 @@ import AdminLayout from '@/components/layout/AdminLayout';
 import OrderListPage from '@/features/orders/pages/OrderListPage';
 import UserListPage from '@/features/users/pages/UserListPage';
 import ChannelListPage from '@/features/channels/pages/ChannelListPage';
+import StatisticsPage from '@/features/statistics/pages/StatisticsPage';
 import { useAuth } from '@/hooks/useAuth';
 
 function ProtectedRoute({ children }) {
@@ -31,6 +32,7 @@ function App() {
           <Route path="users" element={<UserListPage />} />
           <Route path="orders" element={<OrderListPage />} />
           <Route path="channels" element={<ChannelListPage />} />
+          <Route path="statistics" element={<StatisticsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, ShoppingCart, Settings, LogOut, Menu, ChevronsLeft, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Users, ShoppingCart, Settings, LogOut, Menu, ChevronsLeft, MessageSquare, BarChart2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -110,6 +110,19 @@ export default function AdminLayout() {
                     >
                         <MessageSquare className="w-5 h-5 flex-shrink-0" />
                         채널 관리
+                    </NavLink>
+                    <NavLink
+                        to="/statistics"
+                        onClick={handleNavClick}
+                        className={({ isActive }) =>
+                            `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${isActive
+                                ? 'bg-blue-50 text-blue-600'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`
+                        }
+                    >
+                        <BarChart2 className="w-5 h-5 flex-shrink-0" />
+                        통계 관리
                     </NavLink>
                 </nav>
 

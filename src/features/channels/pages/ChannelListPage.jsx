@@ -32,6 +32,7 @@ import {
     ChevronsDown
 } from 'lucide-react';
 import ChannelDetailModal from '../components/ChannelDetailModal';
+import ChannelCombobox from '../components/ChannelCombobox';
 
 export default function ChannelListPage() {
     // Data State
@@ -41,7 +42,7 @@ export default function ChannelListPage() {
 
     // Filter State
     const [filters, setFilters] = useState({
-        channel_name: '',
+        channelId: '',
         status: 'all'
     });
     const [isSearchExpanded, setIsSearchExpanded] = useState(true);
@@ -69,8 +70,8 @@ export default function ChannelListPage() {
                 ]
             };
 
-            if (filters.channel_name) {
-                filter._and.push({ channel_name: { _contains: filters.channel_name } });
+            if (filters.channelId) {
+                filter._and.push({ id: { _eq: filters.channelId } });
             }
             if (filters.status && filters.status !== 'all') {
                 filter._and.push({ status: { _eq: filters.status } });
@@ -116,7 +117,7 @@ export default function ChannelListPage() {
     };
 
     const handleReset = () => {
-        setFilters({ channel_name: '', status: 'all' });
+        setFilters({ channelId: '', status: 'all' });
         setPagination(prev => ({ ...prev, pageIndex: 1 }));
         // fetchChannels() will trigger via useEffect if we add dependency or just call it here?
         // Better to rely on state change or explicit call.
@@ -159,11 +160,10 @@ export default function ChannelListPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">채널명</label>
-                                <Input
-                                    value={filters.channel_name}
-                                    onChange={(e) => setFilters({ ...filters, channel_name: e.target.value })}
-                                    placeholder="채널명 입력"
-                                    className="h-9 text-sm"
+                                <ChannelCombobox
+                                    value={filters.channelId}
+                                    onChange={(val) => setFilters(prev => ({ ...prev, channelId: val }))}
+                                    placeholder="채널 선택"
                                 />
                             </div>
                             <div>
@@ -197,7 +197,13 @@ export default function ChannelListPage() {
                         총 <span className="text-blue-600 font-bold">{totalCount}</span> 건
                     </div>
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={selectedRows.length === 0} className="w-full sm:w-auto h-8 text-xs">
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleDeleteSelected}
+                            disabled={selectedRows.length === 0}
+                            className="w-full sm:w-auto h-8 text-xs bg-red-600 hover:bg-red-700 text-white border-transparent"
+                        >
                             선택 삭제
                         </Button>
                         <Button size="sm" onClick={() => { setSelectedChannel(null); setIsModalOpen(true); }} className="w-full sm:w-auto h-8 text-xs bg-blue-600">
