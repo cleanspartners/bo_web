@@ -132,7 +132,10 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
             const jsonBlob = new Blob([JSON.stringify(parsedData)], { type: 'application/json' });
             formData.append('file', jsonBlob, 'import_data.json'); // Directus import usually expects 'file'
 
-            const response = await fetch('/utils/import/ord_mstr', {
+            // 📍 로컬/프로덕션 환경에 따른 API URL 설정
+            const API_BASE = import.meta.env.DEV ? '/utils' : 'https://api.cleanspartners.com/utils';
+
+            const response = await fetch(`${API_BASE}/import/ord_mstr`, {
                 method: 'POST',
                 // Content-Type header should be omitted for FormData to set boundary automatically
                 headers: {
