@@ -5,6 +5,7 @@ import OrderListPage from '@/features/orders/pages/OrderListPage';
 import UserListPage from '@/features/users/pages/UserListPage';
 import ChannelListPage from '@/features/channels/pages/ChannelListPage';
 import StatisticsPage from '@/features/statistics/pages/StatisticsPage';
+import DashboardPage from '@/features/dashboard/pages/DashboardPage';
 import { useAuth } from '@/hooks/useAuth';
 
 function ProtectedRoute({ children }) {
@@ -28,7 +29,7 @@ function App() {
             <AdminLayout />
           </ProtectedRoute>
         }>
-          <Route index element={<div className="p-8 text-gray-500">대시보드 준비중...</div>} />
+          <Route index element={<DashboardPage />} />
           <Route path="users" element={<UserListPage />} />
           <Route path="orders" element={<OrderListPage />} />
           <Route path="channels" element={<ChannelListPage />} />

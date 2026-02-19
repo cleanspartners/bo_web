@@ -418,14 +418,14 @@ export default function OrderListPage() {
                                 <div className="flex items-center gap-2">
                                     <input
                                         type="date"
-                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                        className="flex-1 min-w-0 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
                                         value={searchParams.startDate}
                                         onChange={(e) => setSearchParams({ ...searchParams, startDate: e.target.value })}
                                     />
-                                    <span className="text-gray-400">~</span>
+                                    <span className="text-gray-400 shrink-0">~</span>
                                     <input
                                         type="date"
-                                        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
+                                        className="flex-1 min-w-0 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none"
                                         value={searchParams.endDate}
                                         onChange={(e) => setSearchParams({ ...searchParams, endDate: e.target.value })}
                                     />

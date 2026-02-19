@@ -151,7 +151,7 @@ export default function StatisticsPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left whitespace-nowrap table-fixed">
+                    <table className="min-w-[800px] w-full text-sm text-left whitespace-nowrap table-fixed">
                         <thead className="bg-gray-100 text-gray-700 font-medium">
                             <tr>
                                 {columns.map((col, idx) => (
@@ -748,52 +748,60 @@ export default function StatisticsPage() {
 
 
     return (
-        <div className="space-y-4 p-4 bg-gray-50 min-h-full">
+        <div className="space-y-4 p-2 md:p-4 bg-gray-50 min-h-full">
             {/* Filter Section */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                    <div className="flex items-center gap-2 mr-2">
-                        <span className="text-sm font-semibold text-gray-600">조회 기간 :</span>
-                        <input
-                            type="date"
-                            className="px-2 py-1.5 text-sm border border-gray-300 rounded outline-none focus:border-blue-500"
-                            value={dateRange.startDate}
-                            onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-                        />
-                        <span className="text-gray-400">~</span>
-                        <input
-                            type="date"
-                            className="px-2 py-1.5 text-sm border border-gray-300 rounded outline-none focus:border-blue-500"
-                            value={dateRange.endDate}
-                            onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-                        />
-                    </div>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                        <span className="text-sm font-semibold text-gray-600 hidden sm:inline">검색 :</span>
-                        <div className="relative w-full sm:w-64">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+                <div className="flex flex-col lg:flex-row items-start lg:items-center gap-4 w-full xl:w-auto">
+                    {/* Date Range Picker */}
+                    <div className="flex items-center gap-2 mr-2 w-full sm:w-auto">
+                        <span className="text-sm font-semibold text-gray-600 whitespace-nowrap hidden sm:inline">조회 기간 :</span>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
                             <input
-                                type="text"
-                                placeholder="지역, 파트너, 채널 검색..."
-                                className={`pl-9 pr-4 py-2 w-full text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${activeTab === 'channel' || activeTab === 'date' ? 'bg-gray-100 cursor-not-allowed' : ''
-                                    }`}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && activeTab === 'partner') {
-                                        fetchData();
-                                    }
-                                }}
-                                disabled={activeTab === 'channel' || activeTab === 'date'}
+                                type="date"
+                                className="flex-1 sm:flex-none min-w-0 px-2 py-1.5 text-sm border border-gray-300 rounded outline-none focus:border-blue-500 sm:w-[130px]"
+                                value={dateRange.startDate}
+                                onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                            />
+                            <span className="text-gray-400 shrink-0">~</span>
+                            <input
+                                type="date"
+                                className="flex-1 sm:flex-none min-w-0 px-2 py-1.5 text-sm border border-gray-300 rounded outline-none focus:border-blue-500 sm:w-[130px]"
+                                value={dateRange.endDate}
+                                onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
                             />
                         </div>
                     </div>
 
-                    <Button size="sm" onClick={fetchData} className="ml-2 bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
-                        <RefreshCw className="w-4 h-4 mr-1" /> 조회
-                    </Button>
+                    {/* Search & Action */}
+                    <div className="flex flex-col sm:flex-row items-center gap-2 w-full lg:w-auto">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <span className="text-sm font-semibold text-gray-600 hidden lg:inline whitespace-nowrap">검색 :</span>
+                            <div className="relative w-full sm:w-64">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                                <input
+                                    type="text"
+                                    placeholder="지역, 파트너, 채널 검색..."
+                                    className={`pl-9 pr-4 py-2 w-full text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${activeTab === 'channel' || activeTab === 'date' ? 'bg-gray-100 cursor-not-allowed' : ''
+                                        }`}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && activeTab === 'partner') {
+                                            fetchData();
+                                        }
+                                    }}
+                                    disabled={activeTab === 'channel' || activeTab === 'date'}
+                                />
+                            </div>
+                        </div>
+
+                        <Button size="sm" onClick={fetchData} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 whitespace-nowrap">
+                            <RefreshCw className="w-4 h-4 mr-1" /> 조회
+                        </Button>
+                    </div>
                 </div>
-                <div className="text-sm text-gray-500 whitespace-nowrap">
+
+                <div className="text-sm text-gray-500 whitespace-nowrap self-end xl:self-auto">
                     총 <strong className="text-blue-600">{
                         activeTab === 'partner' ? filteredPartnerStats.length :
                             activeTab === 'region' ? filteredRegionPartnerStats.length :
@@ -807,11 +815,11 @@ export default function StatisticsPage() {
 
             {/* Dashboard Content */}
             <Tabs defaultValue="partner" value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                <TabsList className="bg-white p-1 border border-gray-200 rounded-lg">
-                    <TabsTrigger value="partner">파트너별</TabsTrigger>
-                    <TabsTrigger value="region">지역별</TabsTrigger>
-                    <TabsTrigger value="channel">채널별</TabsTrigger>
-                    <TabsTrigger value="date">기간별</TabsTrigger>
+                <TabsList className="bg-white p-1 border border-gray-200 rounded-lg w-full flex justify-start overflow-x-auto no-scrollbar">
+                    <TabsTrigger value="partner" className="flex-1 min-w-[80px]">파트너별</TabsTrigger>
+                    <TabsTrigger value="region" className="flex-1 min-w-[80px]">지역별</TabsTrigger>
+                    <TabsTrigger value="channel" className="flex-1 min-w-[80px]">채널별</TabsTrigger>
+                    <TabsTrigger value="date" className="flex-1 min-w-[80px]">기간별</TabsTrigger>
                 </TabsList>
 
                 {/* Partner Tab */}
@@ -896,7 +904,7 @@ export default function StatisticsPage() {
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={filteredRegionStats.slice(0, 20)}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-45} textAnchor="end" height={60} />
+                                    <XAxis dataKey="name" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={60} />
                                     <YAxis
                                         allowDecimals={false}
                                         domain={[0, 'auto']}
@@ -948,7 +956,7 @@ export default function StatisticsPage() {
                                         cy="50%"
                                         labelLine={false}
                                         label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                                        outerRadius={150}
+                                        outerRadius="80%"
                                         fill="#8884d8"
                                         dataKey="value"
                                     >
