@@ -47,19 +47,30 @@ export default function DashboardPage() {
     const [upcomingSchedules, setUpcomingSchedules] = useState([]);
     const [todayPartnerRank, setTodayPartnerRank] = useState([]);
 
-    const getToday = () => new Date().toISOString().split('T')[0];
-    const getTomorrow = () => {
-        const date = new Date();
-        date.setDate(date.getDate() + 1);
-        return date.toISOString().split('T')[0];
-    };
-
     useEffect(() => {
         fetchDashboardData();
     }, []);
 
     const fetchDashboardData = async () => {
+        // console.log('Fetching dashboard data...'); // 디버깅용 로그
         setLoading(true);
+
+        // 날짜 계산 유틸리티 (Local Time 기준)
+        const getToday = () => {
+            const date = new Date();
+            const offset = date.getTimezoneOffset() * 60000;
+            const localDate = new Date(date.getTime() - offset);
+            return localDate.toISOString().split('T')[0];
+        };
+
+        const getTomorrow = () => {
+            const date = new Date();
+            date.setDate(date.getDate() + 1);
+            const offset = date.getTimezoneOffset() * 60000;
+            const localDate = new Date(date.getTime() - offset);
+            return localDate.toISOString().split('T')[0];
+        };
+
         const today = getToday();
         const tomorrow = getTomorrow();
 
@@ -100,7 +111,7 @@ export default function DashboardPage() {
                         }
                     }
                 })),
-                // Overdue Jobs (Date < Today AND Status != Deposit Completed)
+                // Overdue Jobs (Date < Today AND Status != 'Payment Completed')
                 client.request(aggregate('ord_mstr', {
                     aggregate: { count: '*' },
                     query: {

@@ -36,7 +36,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { useOrderStatuses } from '../hooks/useOrderStatuses';
 
+import { useSearchParams } from 'react-router-dom';
+
 export default function OrderListPage() {
+    const [urlSearchParams] = useSearchParams();
     const { statuses: ORDER_STATUSES } = useOrderStatuses();
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -53,25 +56,68 @@ export default function OrderListPage() {
     const [selectedOrderId, setSelectedOrderId] = useState(null);
     const [selectedRows, setSelectedRows] = useState([]);
 
-    // 날짜 계산 유틸리티
-    const getToday = () => new Date().toISOString().split('T')[0];
+    // 날짜 계산 유틸리티 (Local Time 기준)
+    const getToday = () => {
+        const date = new Date();
+        const offset = date.getTimezoneOffset() * 60000;
+        const localDate = new Date(date.getTime() - offset);
+        return localDate.toISOString().split('T')[0];
+    };
+
+    const getTomorrow = () => {
+        const date = new Date();
+        date.setDate(date.getDate() + 1);
+        const offset = date.getTimezoneOffset() * 60000;
+        const localDate = new Date(date.getTime() - offset);
+        return localDate.toISOString().split('T')[0];
+    };
     const getOneMonthLater = () => {
         const date = new Date();
         date.setMonth(date.getMonth() + 1);
         return date.toISOString().split('T')[0];
     };
 
-    // 검색 필터 상태 (기본값 설정: 오늘 ~ 한 달 뒤)
-    const [searchParams, setSearchParams] = useState({
-        startDate: getToday(),
-        endDate: getOneMonthLater(),
-        status: '',
-        partnerName: '', // Legacy support or just use partnerId
-        partnerId: '', // New ID-based filter
-        customerName: '',
-        phone: '',
-        address: '', // New Address filter
-    });
+    // Initialize state from URL params
+    const getInitialSearchParams = () => {
+        const dateParam = urlSearchParams.get('date');
+        const statusParam = urlSearchParams.get('status');
+        const partnerIdParam = urlSearchParams.get('partnerId');
+
+        let startDate = getToday();
+        let endDate = getOneMonthLater();
+        let status = statusParam || '';
+
+        if (dateParam === 'today') {
+            startDate = getToday();
+            endDate = getToday();
+        } else if (dateParam === 'tomorrow') {
+            startDate = getTomorrow();
+            endDate = getTomorrow();
+        }
+
+        // 'late' status is handled in fetchOrders logic, but we can set specific dates here if needed?
+        // Actually, for 'late', we usually want < Today.
+        // Let's handle 'late' logic in fetchOrders or set a flag.
+        // For now, if status is 'late', clearer to clear dates or handle in fetch.
+        if (statusParam === 'late' || statusParam === 'AS접수') {
+            startDate = ''; // Clear default dates to allow fetching past orders
+            endDate = '';
+        }
+
+        return {
+            startDate,
+            endDate,
+            status,
+            partnerName: '',
+            partnerId: partnerIdParam || '',
+            customerName: '',
+            phone: '',
+            address: '',
+        };
+    };
+
+    // 검색 필터 상태
+    const [searchParams, setSearchParams] = useState(getInitialSearchParams());
 
     const [isSearchExpanded, setIsSearchExpanded] = useState(true);
 
@@ -103,14 +149,28 @@ export default function OrderListPage() {
                 ]
             };
 
-            if (searchParams.status && searchParams.status !== 'all') {
+            if (searchParams.status === 'late') {
+                // '작업 지연' 로직: 어제 포함 이전 & 입금완료가 아닌 건들
+                const today = getToday();
+                filter._and.push({ order_date: { _lt: today } });
+                filter._and.push({ status: { _nin: ['입금완료'] } });
+            } else if (searchParams.status && searchParams.status !== 'all') {
                 filter._and.push({ status: { _eq: searchParams.status } });
             }
-            if (searchParams.startDate) {
-                filter._and.push({ order_date: { _gte: searchParams.startDate } });
-            }
-            if (searchParams.endDate) {
-                filter._and.push({ order_date: { _lte: searchParams.endDate } });
+
+            // 날짜 필터 (status가 late가 아닐 때만 적용하거나, 사용자가 명시적으로 날짜를 선택했을 때)
+            // 여기서는 late일 때는 위에서 날짜를 강제하고, 나머지는 searchParams에 따름
+            if (searchParams.status !== 'late') {
+                if (searchParams.startDate) {
+                    filter._and.push({ order_date: { _gte: searchParams.startDate } });
+                }
+                if (searchParams.endDate) {
+                    // 종료일 포함을 위해 다음날 00:00보다 작음(<)으로 조회
+                    const endDateObj = new Date(searchParams.endDate);
+                    endDateObj.setDate(endDateObj.getDate() + 1);
+                    const nextDay = endDateObj.toISOString().split('T')[0];
+                    filter._and.push({ order_date: { _lt: nextDay } });
+                }
             }
             if (searchParams.partnerId) {
                 filter._and.push({ partner: { id: { _eq: searchParams.partnerId } } });
