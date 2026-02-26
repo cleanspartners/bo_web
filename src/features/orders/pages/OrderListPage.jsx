@@ -204,7 +204,8 @@ export default function OrderListPage() {
                         'user_created.first_name',
                         'user_created.last_name',
                         'date_created',
-                        'cstm_memo'
+                        'cstm_memo',
+                        'payment_method'
                     ],
                     filter: filter._and.length > 0 ? filter : {},
                     sort: sortParam,
@@ -420,12 +421,15 @@ export default function OrderListPage() {
             '작업상태': order.status,
             '파트너': order.partner?.first_name || '-',
             '팀장명': order.partner?.last_name || '-',
+            '결제수단': order.payment_method === 'CARD' ? '카드' :
+                order.payment_method === 'CASH' ? '현금/계좌이체' :
+                    order.payment_method === 'BILLING_DOC' ? '현금영수증/세금계산서' : order.payment_method || '-', // 📍 추가
             '수수료구분': order.commission_type || '-',
             '판매금액': order.order_price,
             '수수료': order.commission_type === '비율' ? `${order.commission || 0}%` : (order.commission || 0),
             '정산금액': order.rel_settlement_amount,
             '수수료금액': order.rel_commission_amount,
-            '작성일시': order.date_created ? new Date(order.date_created).toLocaleString() : '-'
+            '작성일시': order.date_created ? new Date(order.date_created).toLocaleString() : '-',
         }));
 
         // 합계 행 추가
@@ -649,6 +653,7 @@ export default function OrderListPage() {
                                 <TableHead className="w-[80px] text-center">작업상태</TableHead>
                                 <TableHead className="w-[100px] text-center">파트너</TableHead>
                                 <TableHead className="w-[100px] text-center">팀장명</TableHead>
+                                <TableHead className="w-[100px] text-center">결제수단</TableHead>
                                 <TableHead className="w-[100px] text-center">수수료구분</TableHead>
                                 <TableHead className="w-[120px] text-right">판매금액</TableHead>
                                 <TableHead className="w-[120px] text-right">수수료</TableHead>
@@ -709,6 +714,13 @@ export default function OrderListPage() {
                                         </TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.partner?.first_name || '-'}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.partner?.last_name || '-'}</TableCell>
+                                        <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>
+                                            {/* 📍 코드값 매핑 표시 */}
+                                            {order.payment_method === 'CARD' ? '카드' :
+                                                order.payment_method === 'CASH' ? '현금/계좌이체' :
+                                                    order.payment_method === 'BILLING_DOC' ? '현금영수증/세금계산서' :
+                                                        order.payment_method || '-'}
+                                        </TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.commission_type || '-'}</TableCell>
                                         <TableCell className="text-right font-medium text-blue-600" onClick={() => handleRowClick(order.id)}>{formatCurrency(order.order_price)}</TableCell>
                                         <TableCell className="text-right" onClick={() => handleRowClick(order.id)}>
@@ -726,7 +738,7 @@ export default function OrderListPage() {
                         </TableBody>
                         <TableFooter className="bg-gray-50 border-t-2 border-gray-200">
                             <TableRow className="hover:bg-gray-50 font-bold text-gray-700">
-                                <TableCell colSpan={10} className="text-center">합계</TableCell>
+                                <TableCell colSpan={11} className="text-center">합계</TableCell>
                                 <TableCell className="text-right text-blue-600">{formatCurrency(totalAmounts.order_price)}</TableCell>
                                 <TableCell className="text-right">-</TableCell>
                                 <TableCell className="text-right text-red-600">{formatCurrency(totalAmounts.rel_settlement_amount)}</TableCell>

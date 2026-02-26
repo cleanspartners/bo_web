@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import client from '@/lib/directus';
-import { updateItem, createItem, readItem, readItems } from '@directus/sdk';
+import { updateItem, createItem, readItem, readItems, readField } from '@directus/sdk';
 import {
     Dialog,
     DialogContent,
@@ -31,6 +31,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     const [formData, setFormData] = useState({});
     const [initialOrder, setInitialOrder] = useState({});
     const [channels, setChannels] = useState([]);
+    const [paymentMethods, setPaymentMethods] = useState([]);
 
     useEffect(() => {
         if (isOpen) {
@@ -54,6 +55,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                     service_type: '',
                     partner: '',
                     channel_name: '',
+                    payment_method: '',
                     commission_type: '비율',
                     order_price: 0,
                     commission: 0,
@@ -68,7 +70,26 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
         }
     }, [isOpen, orderId]);
 
-
+    useEffect(() => {
+        if (isOpen) {
+            fetchChannels();
+            fetchPaymentMethodField(); // 모달 열릴 때 필드 정보 호출
+            if (orderId) fetchOrder();
+            else {
+                // 신규 등록 초기화 로직 (기존과 동일)
+                setFormData({
+                    status: '접수',
+                    order_date: new Date().toISOString().slice(0, 16),
+                    customer_name: '',
+                    payment_method: '',
+                    commission_type: '비율',
+                    order_price: 0,
+                    commission: 0,
+                    // ... 나머지 초기값
+                });
+            }
+        }
+    }, [isOpen, orderId]);
 
     const fetchChannels = async () => {
         try {
@@ -80,6 +101,20 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
             setChannels(response);
         } catch (error) {
             console.error("채널 목록 조회 실패:", error);
+        }
+    };
+
+    // 3. 결제 수단 불러오기 함수
+    const fetchPaymentMethodField = async () => {
+        try {
+            // 제공해주신 URL과 동일하게 'ord_mstr' 테이블의 'payment_method' 필드 정보를 읽어옵니다.
+            const response = await client.request(readField('ord_mstr', 'payment_method'));
+
+            // Directus 필드 설정의 'Choices'는 보통 meta.options.choices에 들어있습니다.
+            const choices = response.meta?.options?.choices || [];
+            setPaymentMethods(choices);
+        } catch (error) {
+            console.error("결제 수단 필드 정보 로드 실패:", error);
         }
     };
 
@@ -111,6 +146,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                 service_type: response.service_type || '',
                 partner: response.partner?.id || '',
                 channel_name: response.channel_name?.id || '',
+                payment_method: response.payment_method || '',
                 commission_type: response.commission_type || '비율',
                 order_price: response.order_price || 0,
                 commission: response.commission || 0,
@@ -331,22 +367,40 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
 
                             {/* Row 6 */}
                             <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center font-medium text-slate-700">채널명</div>
+                            <div className="p-3 border-b border-slate-200 col-span-1 md:col-span-5">
+                                <Select value={formData.channel_name ? String(formData.channel_name) : ''} onValueChange={(val) => handleSelectChange('channel_name', val)}>
+                                    <SelectTrigger className="w-full h-8"><SelectValue placeholder="채널 선택" /></SelectTrigger>
+                                    <SelectContent>{channels.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.channel_name}</SelectItem>)}</SelectContent>
+                                </Select>
+                            </div>
+                            {/* DB에서 불러온 결제 수단 적용 */}
+                            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center font-medium text-slate-700">결제 수단</div>
                             <div className="p-3 border-b border-slate-200 md:col-span-2">
                                 <Select
-                                    value={formData.channel_name ? String(formData.channel_name) : ''}
-                                    onValueChange={(val) => handleSelectChange('channel_name', val)}
+                                    value={formData.payment_method || ''}
+                                    onValueChange={(val) => handleSelectChange('payment_method', val)}
                                 >
-                                    <SelectTrigger className="w-full h-8">
-                                        <SelectValue placeholder="채널 선택" />
-                                    </SelectTrigger>
+                                    <SelectTrigger className="w-full h-8"><SelectValue placeholder="결제 수단 선택" /></SelectTrigger>
                                     <SelectContent>
-                                        {channels.map(channel => (
-                                            <SelectItem key={channel.id} value={String(channel.id)}>
-                                                {channel.channel_name}
+                                        {paymentMethods.map(m => (
+                                            <SelectItem key={m.value} value={m.value}>
+                                                {m.text} {/* 필드 설정의 Text(라벨)를 보여줍니다 */}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
+                            </div>
+                            {/* Row 7 - Financials */}
+                            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center font-medium text-slate-700">판매 금액 (정가)</div>
+                            <div className="p-3 border-b border-slate-200 md:col-span-2">
+                                <Input
+                                    type="text"
+                                    name="order_price"
+                                    value={formatNumber(formData.order_price)}
+                                    onChange={handleNumberChange}
+                                    placeholder="0"
+                                    className="h-8 text-right font-medium"
+                                />
                             </div>
 
                             <div className="bg-slate-50 p-4 border-b border-slate-200 border-l border-slate-200 flex items-center font-medium text-slate-700">수수료 타입</div>
@@ -366,18 +420,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                 </Select>
                             </div>
 
-                            {/* Row 7 - Financials */}
-                            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center font-medium text-slate-700">판매 금액 (정가)</div>
-                            <div className="p-3 border-b border-slate-200 md:col-span-2">
-                                <Input
-                                    type="text"
-                                    name="order_price"
-                                    value={formatNumber(formData.order_price)}
-                                    onChange={handleNumberChange}
-                                    placeholder="0"
-                                    className="h-8 text-right font-medium"
-                                />
-                            </div>
+
 
                             <div className="bg-slate-50 p-4 border-b border-slate-200 border-l border-slate-200 flex items-center font-medium text-slate-700">
                                 {formData.commission_type === '비율' ? '수수료 (%)' : '수수료 (원)'}
