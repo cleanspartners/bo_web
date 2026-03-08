@@ -58,15 +58,8 @@ export function useAuth() {
     }
 
     const login = async (email, password) => {
-        // po_web과 동일한 방식으로 로그인 요청 (SDK의 login 커맨드 사용)
-        const result = await client.request(sdkLogin({
-            email,
-            password,
-            mode: 'json'
-        }));
-
-        // 액세스 토큰 설정
-        await client.setToken(result.access_token);
+        // mode: 'json'을 빼고 기본값(localStorage)을 사용해야 SDK의 autoRefresh가 정상 작동함 [cite: 2026-03-08]
+        const result = await client.request(sdkLogin(email, password));
 
         // 로그인 후 권한 체크를 포함한 사용자 정보 로드
         await checkAuth();

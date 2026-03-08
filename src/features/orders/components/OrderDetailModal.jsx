@@ -59,6 +59,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                     commission_type: '비율',
                     order_price: 0,
                     commission: 0,
+                    vat: 0,
                     rel_settlement_amount: 0,
                     rel_commission_amount: 0,
                     cstm_memo: '',
@@ -85,6 +86,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                     commission_type: '비율',
                     order_price: 0,
                     commission: 0,
+                    vat: 0,
                     // ... 나머지 초기값
                 });
             }
@@ -150,6 +152,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                 commission_type: response.commission_type || '비율',
                 order_price: response.order_price || 0,
                 commission: response.commission || 0,
+                vat: response.vat || 0,
                 rel_settlement_amount: response.rel_settlement_amount || 0,
                 rel_commission_amount: response.rel_commission_amount || 0,
                 cstm_memo: response.cstm_memo || '',
@@ -171,7 +174,18 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     };
 
     const handleSelectChange = (name, value) => {
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => {
+            const newData = { ...prev, [name]: value };
+            // 결제 수단 변경 시 부가세 자동 계산 로직 적용 (수동 수정 가능하도록)
+            if (name === 'payment_method') {
+                if (value === 'BILLING_DOC') {
+                    newData.vat = Math.floor((newData.order_price || 0) * 0.1);
+                } else {
+                    newData.vat = 0;
+                }
+            }
+            return newData;
+        });
     };
 
     // 숫자 포맷팅 (콤마 추가)
@@ -435,6 +449,21 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                     className="h-8 text-right font-medium"
                                 />
                             </div>
+
+                            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center font-medium text-slate-700">부가세</div>
+                            <div className="p-3 border-b border-slate-200 md:col-span-2">
+                                <Input
+                                    type="text"
+                                    name="vat"
+                                    value={formatNumber(formData.vat)}
+                                    onChange={handleNumberChange}
+                                    placeholder="0"
+                                    className="h-8 text-right font-medium"
+                                />
+                            </div>
+                            {/* 오른쪽 빈 칸 채우기 위해 눈에 안 띄는 div 추가 */}
+                            <div className="bg-white p-4 border-b border-slate-200 border-l border-slate-200 flex items-center col-span-1"></div>
+                            <div className="p-3 border-b border-slate-200 md:col-span-2"></div>
 
                             {/* Row 8 - Results */}
                             <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center font-medium text-slate-700">정산 금액 (지급액)</div>

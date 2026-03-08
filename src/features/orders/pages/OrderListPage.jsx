@@ -46,6 +46,7 @@ export default function OrderListPage() {
     const [totalCount, setTotalCount] = useState(0);
     const [totalAmounts, setTotalAmounts] = useState({
         order_price: 0,
+        vat: 0,
         rel_settlement_amount: 0,
         rel_commission_amount: 0
     });
@@ -205,7 +206,8 @@ export default function OrderListPage() {
                         'user_created.last_name',
                         'date_created',
                         'cstm_memo',
-                        'payment_method'
+                        'payment_method',
+                        'vat'
                     ],
                     filter: filter._and.length > 0 ? filter : {},
                     sort: sortParam,
@@ -215,7 +217,7 @@ export default function OrderListPage() {
                 client.request(aggregate('ord_mstr', {
                     aggregate: {
                         countDistinct: 'id',
-                        sum: ['order_price', 'rel_settlement_amount', 'rel_commission_amount']
+                        sum: ['order_price', 'vat', 'rel_settlement_amount', 'rel_commission_amount']
                     },
                     query: {
                         filter: filter._and.length > 0 ? filter : {}
@@ -231,6 +233,7 @@ export default function OrderListPage() {
             setTotalCount(count ? Number(count) : 0);
             setTotalAmounts({
                 order_price: sums?.order_price ? Number(sums.order_price) : 0,
+                vat: sums?.vat ? Number(sums.vat) : 0,
                 rel_settlement_amount: sums?.rel_settlement_amount ? Number(sums.rel_settlement_amount) : 0,
                 rel_commission_amount: sums?.rel_commission_amount ? Number(sums.rel_commission_amount) : 0
             });
@@ -426,6 +429,7 @@ export default function OrderListPage() {
                     order.payment_method === 'BILLING_DOC' ? '현금영수증/세금계산서' : order.payment_method || '-', // 📍 추가
             '수수료구분': order.commission_type || '-',
             '판매금액': order.order_price,
+            '부가세': order.vat || 0,
             '수수료': order.commission_type === '비율' ? `${order.commission || 0}%` : (order.commission || 0),
             '정산금액': order.rel_settlement_amount,
             '수수료금액': order.rel_commission_amount,
@@ -443,6 +447,7 @@ export default function OrderListPage() {
             '팀장명': '',
             '수수료구분': '',
             '판매금액': totalAmounts.order_price, // 숫자 자체로 저장 (엑셀 서식 적용 가능)
+            '부가세': totalAmounts.vat,
             '수수료': '',
             '정산금액': totalAmounts.rel_settlement_amount,
             '수수료금액': totalAmounts.rel_commission_amount,
@@ -460,18 +465,6 @@ export default function OrderListPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 className="text-lg font-bold text-gray-800">조회 조건</h2>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-                    >
-                        {isSearchExpanded ? (
-                            <ChevronsUp className="h-4 w-4 text-gray-500" />
-                        ) : (
-                            <ChevronsDown className="h-4 w-4 text-gray-500" />
-                        )}
-                    </Button>
                 </div>
 
                 {isSearchExpanded && (
@@ -566,6 +559,24 @@ export default function OrderListPage() {
                         </div>
                     </form>
                 )}
+
+                {/* 📍 토글 스위치 하단으로 이동 */}
+                <div
+                    className="flex justify-center items-center mt-2 pt-2 border-t border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors rounded-b-lg"
+                    onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+                >
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-full p-0 pointer-events-none text-gray-400 hover:text-gray-600"
+                    >
+                        {isSearchExpanded ? (
+                            <ChevronsUp className="h-5 w-5" />
+                        ) : (
+                            <ChevronsDown className="h-5 w-5" />
+                        )}
+                    </Button>
+                </div>
             </div>
 
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
@@ -656,6 +667,7 @@ export default function OrderListPage() {
                                 <TableHead className="w-[100px] text-center">결제수단</TableHead>
                                 <TableHead className="w-[100px] text-center">수수료구분</TableHead>
                                 <TableHead className="w-[120px] text-right">판매금액</TableHead>
+                                <TableHead className="w-[120px] text-right">부가세</TableHead>
                                 <TableHead className="w-[120px] text-right">수수료</TableHead>
                                 <TableHead className="w-[120px] text-right">정산금액</TableHead>
                                 <TableHead className="w-[120px] text-right">수수료금액</TableHead>
@@ -723,6 +735,7 @@ export default function OrderListPage() {
                                         </TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.commission_type || '-'}</TableCell>
                                         <TableCell className="text-right font-medium text-blue-600" onClick={() => handleRowClick(order.id)}>{formatCurrency(order.order_price)}</TableCell>
+                                        <TableCell className="text-right" onClick={() => handleRowClick(order.id)}>{formatCurrency(order.vat || 0)}</TableCell>
                                         <TableCell className="text-right" onClick={() => handleRowClick(order.id)}>
                                             {order.commission_type === '비율'
                                                 ? `${order.commission || 0}%`
@@ -740,6 +753,7 @@ export default function OrderListPage() {
                             <TableRow className="hover:bg-gray-50 font-bold text-gray-700">
                                 <TableCell colSpan={11} className="text-center">합계</TableCell>
                                 <TableCell className="text-right text-blue-600">{formatCurrency(totalAmounts.order_price)}</TableCell>
+                                <TableCell className="text-right">{formatCurrency(totalAmounts.vat)}</TableCell>
                                 <TableCell className="text-right">-</TableCell>
                                 <TableCell className="text-right text-red-600">{formatCurrency(totalAmounts.rel_settlement_amount)}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(totalAmounts.rel_commission_amount)}</TableCell>

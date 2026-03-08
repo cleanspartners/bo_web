@@ -7,6 +7,6 @@ const API_URL = import.meta.env.DEV
 
 const client = createDirectus(API_URL)
     .with(rest())
-    .with(authentication('localStorage'));
+    .with(authentication('localStorage', { autoRefresh: true }));
 
 export default client;

@@ -288,18 +288,6 @@ export default function UserListPage() {
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 className="text-lg font-bold text-gray-800">조회 조건</h2>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-                    >
-                        {isSearchExpanded ? (
-                            <ChevronsUp className="h-4 w-4 text-gray-500" />
-                        ) : (
-                            <ChevronsDown className="h-4 w-4 text-gray-500" />
-                        )}
-                    </Button>
                 </div>
 
                 {isSearchExpanded && (
@@ -347,6 +335,24 @@ export default function UserListPage() {
                         </div>
                     </>
                 )}
+
+                {/* 📍 토글 스위치 하단으로 이동 */}
+                <div
+                    className="flex justify-center items-center mt-2 pt-2 border-t border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors rounded-b-lg"
+                    onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+                >
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-full p-0 pointer-events-none text-gray-400 hover:text-gray-600"
+                    >
+                        {isSearchExpanded ? (
+                            <ChevronsUp className="h-5 w-5" />
+                        ) : (
+                            <ChevronsDown className="h-5 w-5" />
+                        )}
+                    </Button>
+                </div>
             </div>
 
             {/* Data Table Section */}
