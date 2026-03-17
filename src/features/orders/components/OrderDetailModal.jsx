@@ -200,15 +200,45 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
 
     if (!isOpen) return null;
 
-    // 재사용 컴포넌트
-    const FieldLabel = ({ children, className = "" }) => (
-        <div className={`bg-slate-50 p-4 flex items-center font-medium text-slate-700 border-b border-slate-200 ${className}`}>
-            {children}
+    // ✅ 반응형 행 컴포넌트
+    // 모바일: 라벨 위, 값 아래 (1열)
+    // 데스크탑: 라벨 왼쪽, 값 오른쪽 (2열)
+    const FormRow = ({ label, children, fullWidth = false }) => (
+        <div className={`border-b border-slate-200 ${fullWidth ? '' : ''}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center">
+                <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
+                    {label}
+                </div>
+                <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
+                    {children}
+                </div>
+            </div>
         </div>
     );
-    const FieldValue = ({ children, className = "" }) => (
-        <div className={`p-3 flex items-center border-b border-slate-200 ${className}`}>
-            {children}
+
+    // ✅ 모바일: 1열 쌓기 / 데스크탑: 2열 나란히
+    const FormRowPair = ({ label1, children1, label2, children2 }) => (
+        <div className="border-b border-slate-200">
+            <div className="flex flex-col sm:flex-row sm:divide-x sm:divide-slate-200">
+                {/* 왼쪽 */}
+                <div className="flex flex-col sm:flex-row sm:items-center flex-1 border-b border-slate-100 sm:border-b-0">
+                    <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
+                        {label1}
+                    </div>
+                    <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
+                        {children1}
+                    </div>
+                </div>
+                {/* 오른쪽 */}
+                <div className="flex flex-col sm:flex-row sm:items-center flex-1">
+                    <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
+                        {label2}
+                    </div>
+                    <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
+                        {children2}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 
@@ -225,229 +255,186 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                 {loading && !formData.order_date ? (
                     <div className="py-10 text-center text-slate-400">로딩중...</div>
                 ) : (
-                    <div className="p-6 overflow-y-auto flex-1 space-y-6">
-
-                        {/* ✅ 테이블을 2컬럼(라벨+값) 구조로 단순화 → 깨짐 방지 */}
+                    <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
                         <div className="border border-slate-200 rounded-lg overflow-hidden text-sm">
 
                             {/* 작업상태 / 파트너 */}
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>작업상태</FieldLabel>
-                                    <FieldValue>
-                                        <Select value={formData.status} onValueChange={(val) => handleSelectChange('status', val)}>
-                                            <SelectTrigger className="h-8 w-full"><SelectValue placeholder="상태 선택" /></SelectTrigger>
-                                            <SelectContent>
-                                                {ORDER_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.text}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </FieldValue>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>파트너</FieldLabel>
-                                    <FieldValue>
-                                        <PartnerCombobox value={formData.partner} onChange={(val) => handleSelectChange('partner', val)} />
-                                    </FieldValue>
-                                </div>
-                            </div>
-
-                            {/* 요청날짜 / 고객명 */}
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>요청 날짜</FieldLabel>
-                                    <FieldValue>
-                                        <Input type="datetime-local" name="order_date" value={formData.order_date} onChange={handleChange} className="h-8 w-full" />
-                                    </FieldValue>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>고객명</FieldLabel>
-                                    <FieldValue>
-                                        <Input name="customer_name" value={formData.customer_name} onChange={handleChange} className="h-8 w-full" />
-                                    </FieldValue>
-                                </div>
-                            </div>
-
-                            {/* 연락처 - 풀너비 */}
-                            <div className="grid grid-cols-[140px_1fr]">
-                                <FieldLabel>연락처</FieldLabel>
-                                <FieldValue>
-                                    <Input name="phone" value={formData.phone} onChange={handleChange} className="h-8 max-w-xs" />
-                                </FieldValue>
-                            </div>
-
-                            {/* 주소 - 풀너비 */}
-                            <div className="grid grid-cols-[140px_1fr]">
-                                <FieldLabel>주소</FieldLabel>
-                                <FieldValue>
-                                    <Input name="address" value={formData.address} onChange={handleChange} className="h-8 w-full" />
-                                </FieldValue>
-                            </div>
-
-                            {/* 서비스구분 / 서비스항목 */}
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>서비스구분</FieldLabel>
-                                    <FieldValue>
-                                        <Select
-                                            value={formData.service_category || 'NONE'}
-                                            onValueChange={(val) => handleSelectChange('service_category', val === 'NONE' ? '' : val)}
-                                        >
-                                            <SelectTrigger className="h-8 w-full"><SelectValue placeholder="선택" /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="NONE">선택 안함</SelectItem>
-                                                <SelectItem value="AIRCON">에어컨 케어</SelectItem>
-                                                <SelectItem value="CLEANING">공간 케어</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </FieldValue>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>서비스 항목</FieldLabel>
-                                    <FieldValue>
-                                        <Input name="service_type" value={formData.service_type} onChange={handleChange} className="h-8 w-full" />
-                                    </FieldValue>
-                                </div>
-                            </div>
-
-                            {/* 채널명 - 풀너비 */}
-                            <div className="grid grid-cols-[140px_1fr]">
-                                <FieldLabel>채널명</FieldLabel>
-                                <FieldValue>
-                                    <Select
-                                        value={formData.channel_name ? String(formData.channel_name) : 'NONE'}
-                                        onValueChange={(val) => handleSelectChange('channel_name', val === 'NONE' ? '' : val)}
-                                    >
-                                        <SelectTrigger className="h-8 w-full"><SelectValue placeholder="채널 선택" /></SelectTrigger>
+                            <FormRowPair
+                                label1="작업상태"
+                                children1={
+                                    <Select value={formData.status} onValueChange={(val) => handleSelectChange('status', val)}>
+                                        <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="상태 선택" /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="NONE">선택 안함</SelectItem>
-                                            {channels.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.channel_name}</SelectItem>)}
+                                            {ORDER_STATUSES.map(s => <SelectItem key={s.value} value={s.value}>{s.text}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
-                                </FieldValue>
-                            </div>
+                                }
+                                label2="파트너"
+                                children2={
+                                    <PartnerCombobox value={formData.partner} onChange={(val) => handleSelectChange('partner', val)} />
+                                }
+                            />
+
+                            {/* 요청날짜 / 고객명 */}
+                            <FormRowPair
+                                label1="요청 날짜"
+                                children1={
+                                    <Input type="datetime-local" name="order_date" value={formData.order_date} onChange={handleChange} className="h-9 w-full text-sm" />
+                                }
+                                label2="고객명"
+                                children2={
+                                    <Input name="customer_name" value={formData.customer_name} onChange={handleChange} className="h-9 w-full text-sm" />
+                                }
+                            />
+
+                            {/* 연락처 */}
+                            <FormRow label="연락처">
+                                <Input name="phone" value={formData.phone} onChange={handleChange} className="h-9 w-full max-w-sm text-sm" />
+                            </FormRow>
+
+                            {/* 주소 */}
+                            <FormRow label="주소">
+                                <Input name="address" value={formData.address} onChange={handleChange} className="h-9 w-full text-sm" />
+                            </FormRow>
+
+                            {/* 서비스구분 / 서비스항목 */}
+                            <FormRowPair
+                                label1="서비스구분"
+                                children1={
+                                    <Select
+                                        value={formData.service_category || 'NONE'}
+                                        onValueChange={(val) => handleSelectChange('service_category', val === 'NONE' ? '' : val)}
+                                    >
+                                        <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="선택" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="NONE">선택 안함</SelectItem>
+                                            <SelectItem value="AIRCON">에어컨 케어</SelectItem>
+                                            <SelectItem value="CLEANING">공간 케어</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                }
+                                label2="서비스 항목"
+                                children2={
+                                    <Input name="service_type" value={formData.service_type} onChange={handleChange} className="h-9 w-full text-sm" />
+                                }
+                            />
+
+                            {/* 채널명 */}
+                            <FormRow label="채널명">
+                                <Select
+                                    value={formData.channel_name ? String(formData.channel_name) : 'NONE'}
+                                    onValueChange={(val) => handleSelectChange('channel_name', val === 'NONE' ? '' : val)}
+                                >
+                                    <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="채널 선택" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="NONE">선택 안함</SelectItem>
+                                        {channels.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.channel_name}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </FormRow>
 
                             {/* 결제수단 / 판매금액 */}
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>결제 수단</FieldLabel>
-                                    <FieldValue>
-                                        <Select
-                                            value={formData.payment_method || 'NONE'}
-                                            onValueChange={(val) => handleSelectChange('payment_method', val === 'NONE' ? '' : val)}
-                                        >
-                                            <SelectTrigger className="h-8 w-full"><SelectValue placeholder="결제 수단 선택" /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="NONE">선택 안함</SelectItem>
-                                                {paymentMethods.map(m => <SelectItem key={m.value} value={m.value}>{m.text}</SelectItem>)}
-                                            </SelectContent>
-                                        </Select>
-                                    </FieldValue>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>판매 금액</FieldLabel>
-                                    <FieldValue>
-                                        <Input type="text" name="order_price" value={formatNumber(formData.order_price)} onChange={handleNumberChange} placeholder="0" className="h-8 w-full text-right font-medium" />
-                                    </FieldValue>
-                                </div>
-                            </div>
+                            <FormRowPair
+                                label1="결제 수단"
+                                children1={
+                                    <Select
+                                        value={formData.payment_method || 'NONE'}
+                                        onValueChange={(val) => handleSelectChange('payment_method', val === 'NONE' ? '' : val)}
+                                    >
+                                        <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="결제 수단 선택" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="NONE">선택 안함</SelectItem>
+                                            {paymentMethods.map(m => <SelectItem key={m.value} value={m.value}>{m.text}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                }
+                                label2="판매 금액"
+                                children2={
+                                    <Input type="text" name="order_price" value={formatNumber(formData.order_price)} onChange={handleNumberChange} placeholder="0" className="h-9 w-full text-right font-medium text-sm" />
+                                }
+                            />
 
                             {/* 수수료타입 / 수수료 */}
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>수수료 타입</FieldLabel>
-                                    <FieldValue>
-                                        <Select value={formData.commission_type} onValueChange={(val) => handleSelectChange('commission_type', val)}>
-                                            <SelectTrigger className="h-8 w-full"><SelectValue /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="비율">비율(%)</SelectItem>
-                                                <SelectItem value="금액">금액(원)</SelectItem>
-                                                <SelectItem value="수동">수동</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </FieldValue>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>{formData.commission_type === '비율' ? '수수료 (%)' : '수수료 (원)'}</FieldLabel>
-                                    <FieldValue>
-                                        <Input type="text" name="commission" value={formatNumber(formData.commission)} onChange={handleNumberChange} placeholder="0" className="h-8 w-full text-right font-medium" />
-                                    </FieldValue>
-                                </div>
-                            </div>
+                            <FormRowPair
+                                label1="수수료 타입"
+                                children1={
+                                    <Select value={formData.commission_type} onValueChange={(val) => handleSelectChange('commission_type', val)}>
+                                        <SelectTrigger className="h-9 w-full text-sm"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="비율">비율(%)</SelectItem>
+                                            <SelectItem value="금액">금액(원)</SelectItem>
+                                            <SelectItem value="수동">수동</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                }
+                                label2={formData.commission_type === '비율' ? '수수료 (%)' : '수수료 (원)'}
+                                children2={
+                                    <Input type="text" name="commission" value={formatNumber(formData.commission)} onChange={handleNumberChange} placeholder="0" className="h-9 w-full text-right font-medium text-sm" />
+                                }
+                            />
 
                             {/* 부가세 / 정산금액 */}
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>부가세</FieldLabel>
-                                    <FieldValue>
-                                        <Input type="text" name="vat" value={formatNumber(formData.vat)} onChange={handleNumberChange} placeholder="0" className="h-8 w-full text-right font-medium" />
-                                    </FieldValue>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <FieldLabel>정산 금액 (지급액)</FieldLabel>
-                                    <FieldValue>
-                                        <Input
-                                            type="text" name="rel_settlement_amount"
-                                            value={formatNumber(formData.rel_settlement_amount)}
-                                            readOnly={formData.commission_type !== '수동'}
-                                            onChange={handleNumberChange}
-                                            className={`h-8 w-full text-right font-bold ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
-                                        />
-                                    </FieldValue>
-                                </div>
-                            </div>
-
-                            {/* 수수료금액 - 풀너비 */}
-                            <div className="grid grid-cols-[140px_1fr]">
-                                <FieldLabel>수수료 금액 (수익)</FieldLabel>
-                                <FieldValue>
+                            <FormRowPair
+                                label1="부가세"
+                                children1={
+                                    <Input type="text" name="vat" value={formatNumber(formData.vat)} onChange={handleNumberChange} placeholder="0" className="h-9 w-full text-right font-medium text-sm" />
+                                }
+                                label2="정산 금액 (지급액)"
+                                children2={
                                     <Input
-                                        type="text" name="rel_commission_amount"
-                                        value={formatNumber(formData.rel_commission_amount)}
+                                        type="text" name="rel_settlement_amount"
+                                        value={formatNumber(formData.rel_settlement_amount)}
                                         readOnly={formData.commission_type !== '수동'}
                                         onChange={handleNumberChange}
-                                        className={`h-8 max-w-xs text-right font-bold ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
+                                        className={`h-9 w-full text-right font-bold text-sm ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
                                     />
-                                </FieldValue>
-                            </div>
+                                }
+                            />
+
+                            {/* 수수료금액 */}
+                            <FormRow label="수수료 금액 (수익)">
+                                <Input
+                                    type="text" name="rel_commission_amount"
+                                    value={formatNumber(formData.rel_commission_amount)}
+                                    readOnly={formData.commission_type !== '수동'}
+                                    onChange={handleNumberChange}
+                                    className={`h-9 w-full sm:max-w-xs text-right font-bold text-sm ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
+                                />
+                            </FormRow>
 
                             {/* 고객메모 */}
-                            <div className="grid grid-cols-[140px_1fr]">
-                                <FieldLabel className="items-start pt-4">고객 메모</FieldLabel>
-                                <FieldValue>
-                                    <Textarea name="cstm_memo" value={formData.cstm_memo || ''} onChange={handleChange} className="min-h-[80px] resize-none w-full" />
-                                </FieldValue>
-                            </div>
+                            <FormRow label="고객 메모">
+                                <Textarea name="cstm_memo" value={formData.cstm_memo || ''} onChange={handleChange} className="min-h-[80px] resize-none w-full text-sm" />
+                            </FormRow>
 
-                            {/* 관리자메모 */}
-                            <div className="grid grid-cols-[140px_1fr] border-b-0">
-                                <FieldLabel className="items-start pt-4 border-b-0">관리자 메모</FieldLabel>
-                                <FieldValue className="border-b-0">
-                                    <Textarea name="memo" value={formData.memo || ''} onChange={handleChange} className="min-h-[80px] resize-none w-full" />
-                                </FieldValue>
+                            {/* 관리자메모 - 마지막이라 border-b 제거 */}
+                            <div>
+                                <div className="flex flex-col sm:flex-row sm:items-start">
+                                    <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
+                                        관리자 메모
+                                    </div>
+                                    <div className="px-4 py-2.5 sm:py-3 flex-1">
+                                        <Textarea name="memo" value={formData.memo || ''} onChange={handleChange} className="min-h-[80px] resize-none w-full text-sm" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         {/* 메타데이터 */}
                         <div className="border border-slate-200 rounded-lg overflow-hidden text-sm">
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <div className="bg-slate-50 p-3 border-b border-slate-200 font-medium text-slate-700">등록자</div>
-                                    <div className="p-3 border-b border-slate-200 text-slate-600">{formatUserName(order?.user_created)}</div>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <div className="bg-slate-50 p-3 border-b border-slate-200 font-medium text-slate-700">등록 일시</div>
-                                    <div className="p-3 border-b border-slate-200 text-slate-600">{order?.date_created ? new Date(order.date_created).toLocaleString() : '-'}</div>
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 divide-x divide-slate-200">
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <div className="bg-slate-50 p-3 font-medium text-slate-700">수정자</div>
-                                    <div className="p-3 text-slate-600">{formatUserName(order?.user_updated)}</div>
-                                </div>
-                                <div className="grid grid-cols-[140px_1fr]">
-                                    <div className="bg-slate-50 p-3 font-medium text-slate-700">수정 일시</div>
-                                    <div className="p-3 text-slate-600">{order?.date_updated ? new Date(order.date_updated).toLocaleString() : '-'}</div>
-                                </div>
+                            <FormRowPair
+                                label1="등록자"
+                                children1={<span className="text-slate-600 text-sm">{formatUserName(order?.user_created)}</span>}
+                                label2="등록 일시"
+                                children2={<span className="text-slate-600 text-sm">{order?.date_created ? new Date(order.date_created).toLocaleString() : '-'}</span>}
+                            />
+                            <div className="border-b-0">
+                                <FormRowPair
+                                    label1="수정자"
+                                    children1={<span className="text-slate-600 text-sm">{formatUserName(order?.user_updated)}</span>}
+                                    label2="수정 일시"
+                                    children2={<span className="text-slate-600 text-sm">{order?.date_updated ? new Date(order.date_updated).toLocaleString() : '-'}</span>}
+                                />
                             </div>
                         </div>
                     </div>
