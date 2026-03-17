@@ -176,13 +176,20 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     const handleSelectChange = (name, value) => {
         setFormData(prev => {
             const newData = { ...prev, [name]: value };
-            // 결제 수단 변경 시 부가세 자동 계산 로직 적용 (수동 수정 가능하도록)
+            
+            // 결제 수단 변경 시 부가세 자동 계산 로직 적용 및 총 판매금액(순수금액+부가세) 변동 처리
             if (name === 'payment_method') {
+                // 기존 총액에서 기존 부가세를 빼서 '순수 판매 단가'를 구함
+                const purePrice = Number(prev.order_price || 0) - Number(prev.vat || 0);
+
+                let newVat = 0;
                 if (value === 'BILLING_DOC') {
-                    newData.vat = Math.floor((newData.order_price || 0) * 0.1);
-                } else {
-                    newData.vat = 0;
+                    newVat = Math.floor(purePrice * 0.1);
                 }
+
+                // 새로운 부가세를 적용한 총 판매 금액 계산
+                newData.vat = newVat;
+                newData.order_price = purePrice + newVat;
             }
             return newData;
         });
@@ -207,19 +214,24 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     useEffect(() => {
         if (formData.commission_type === '수동') return;
 
-        const orderPrice = Number(formData.order_price) || 0;
+        const rawPrice = Number(formData.order_price) || 0;
+        const vatAmount = Number(formData.vat) || 0;
+        // User requested: "부가세를 뺀 금액에서"
+        const purePrice = rawPrice - vatAmount;
+        
         const commissionVal = Number(formData.commission) || 0;
         let settlementAmount = 0;
         let commissionAmount = 0;
 
         if (formData.commission_type === '비율') {
             // 비율인 경우: commission이 퍼센트(%)
-            commissionAmount = Math.floor(orderPrice * (commissionVal / 100));
-            settlementAmount = orderPrice - commissionAmount;
+            commissionAmount = Math.floor(purePrice * (commissionVal / 100));
+            // 정산지급액은 '순수금액'에서 수수료를 뺀 금액
+            settlementAmount = purePrice - commissionAmount;
         } else {
             // 금액인 경우: commission이 금액(원)
             commissionAmount = commissionVal;
-            settlementAmount = orderPrice - commissionAmount;
+            settlementAmount = purePrice - commissionAmount;
         }
 
         setFormData(prev => {
