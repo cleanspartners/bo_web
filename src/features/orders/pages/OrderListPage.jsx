@@ -109,6 +109,7 @@ export default function OrderListPage() {
             startDate,
             endDate,
             status,
+            serviceCategory: '', // 서비스구분 검색
             partnerName: '',
             partnerId: partnerIdParam || '',
             customerName: '',
@@ -157,6 +158,10 @@ export default function OrderListPage() {
                 filter._and.push({ status: { _nin: ['입금완료'] } });
             } else if (searchParams.status && searchParams.status !== 'all') {
                 filter._and.push({ status: { _eq: searchParams.status } });
+            }
+
+            if (searchParams.serviceCategory) {
+                filter._and.push({ service_category: { _eq: searchParams.serviceCategory } });
             }
 
             // 날짜 필터 (status가 late가 아닐 때만 적용하거나, 사용자가 명시적으로 날짜를 선택했을 때)
@@ -264,6 +269,7 @@ export default function OrderListPage() {
             startDate: getToday(),
             endDate: getOneMonthLater(),
             status: '',
+            serviceCategory: '',
             partnerName: '',
             partnerId: '',
             customerName: '',
@@ -420,6 +426,7 @@ export default function OrderListPage() {
             'No.': index + 1,
             '고객명': order.customer_name,
             '요청날짜': order.order_date?.split('T')[0],
+            '서비스구분': order.service_category === 'AIRCON' ? '에어컨 케어' : order.service_category === 'CLEANING' ? '공간 케어' : '-',
             '서비스항목': order.service_type,
             '작업상태': order.status,
             '파트너': order.partner?.first_name || '-',
@@ -441,6 +448,7 @@ export default function OrderListPage() {
             'No.': '합계',
             '고객명': '',
             '요청날짜': '',
+            '서비스구분': '',
             '서비스항목': '',
             '작업상태': '',
             '파트너': '',
@@ -469,8 +477,8 @@ export default function OrderListPage() {
 
                 {isSearchExpanded && (
                     <form onSubmit={handleSearch}>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="sm:col-span-2 lg:col-span-2">
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">요청날짜</label>
                                 <div className="flex items-center gap-2">
                                     <input
@@ -487,6 +495,19 @@ export default function OrderListPage() {
                                         onChange={(e) => setSearchParams({ ...searchParams, endDate: e.target.value })}
                                     />
                                 </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">서비스구분</label>
+                                <select
+                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                                    value={searchParams.serviceCategory}
+                                    onChange={(e) => setSearchParams({ ...searchParams, serviceCategory: e.target.value })}
+                                >
+                                    <option value="">전체</option>
+                                    <option value="AIRCON">에어컨 케어</option>
+                                    <option value="CLEANING">공간 케어</option>
+                                </select>
                             </div>
 
                             <div>
@@ -660,6 +681,7 @@ export default function OrderListPage() {
                                     </div>
                                 </TableHead>
                                 <TableHead className="w-[150px] text-center">주소</TableHead>
+                                <TableHead className="w-[100px] text-center">서비스구분</TableHead>
                                 <TableHead className="w-[120px] text-center">서비스항목</TableHead>
                                 <TableHead className="w-[80px] text-center">작업상태</TableHead>
                                 <TableHead className="w-[100px] text-center">파트너</TableHead>
@@ -711,6 +733,9 @@ export default function OrderListPage() {
                                         <TableCell className="text-center font-medium text-gray-900" onClick={() => handleRowClick(order.id)}>{order.customer_name}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.order_date?.split('T')[0]}</TableCell>
                                         <TableCell className="text-center truncate max-w-[150px]" title={order.address} onClick={() => handleRowClick(order.id)}>{order.address || '-'}</TableCell>
+                                        <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>
+                                            {order.service_category === 'AIRCON' ? '에어컨 케어' : order.service_category === 'CLEANING' ? '공간 케어' : '-'}
+                                        </TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.service_type}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>
                                             <Badge variant="outline" className={`bg-white whitespace-nowrap text-[10px] px-2 py-0.5 ${order.status === '접수' ? 'text-blue-600 border-blue-200 bg-blue-50' :
@@ -751,7 +776,7 @@ export default function OrderListPage() {
                         </TableBody>
                         <TableFooter className="bg-gray-50 border-t-2 border-gray-200">
                             <TableRow className="hover:bg-gray-50 font-bold text-gray-700">
-                                <TableCell colSpan={11} className="text-center">합계</TableCell>
+                                <TableCell colSpan={12} className="text-center">합계</TableCell>
                                 <TableCell className="text-right text-blue-600">{formatCurrency(totalAmounts.order_price)}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(totalAmounts.vat)}</TableCell>
                                 <TableCell className="text-right">-</TableCell>
