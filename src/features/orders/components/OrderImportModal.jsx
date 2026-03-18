@@ -12,6 +12,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, FileUp, AlertCircle, CheckCircle2 } from "lucide-react";
 import client from '@/lib/directus';
+import { readItems } from '@directus/sdk';
 
 export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
     const fileInputRef = useRef(null);
@@ -36,7 +37,7 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
         setError(null);
 
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array', cellDates: true });
@@ -50,6 +51,18 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                     return;
                 }
 
+                // 채널 목록 조회 (채널명 → ID 변환용)
+                const channelList = await client.request(readItems('chnnl_mstr', {
+                    fields: ['id', 'channel_name'],
+                    filter: { del_yn: { _neq: 'Y' } },
+                    limit: -1,
+                }));
+                // { '클린스파트너스(오프라인)': 1, ... } 형태의 맵 생성
+                const channelNameToId = {};
+                channelList.forEach(ch => {
+                    channelNameToId[ch.channel_name] = ch.id;
+                });
+
                 // Data Mapping & Transformation
                 const mappedData = jsonData.map(row => {
                     const parseNumber = (val) => {
@@ -58,12 +71,18 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                         return Number(String(val).replace(/,/g, '')) || 0;
                     };
 
+                    const channelNameText = row['channel_name.channel_name'] || row['channel_name'] || '';
+                    const channelId = channelNameToId[channelNameText] ?? null;
+
                     return {
                         customer_name: row['customer_name'] || '',
                         order_date: row['order_date'] ? formatDate(row['order_date']) : null,
                         phone: row['phone'] || '',
                         address: row['address'] || '',
                         service_type: row['service_type'] || '',
+                        service_category: row['service_category'] || '',
+                        channel_name: channelId,
+                        _channel_name_text: channelNameText, // 미리보기 표시용
                         partner: row['partner'] || 'd6e6568c-48f0-4951-89e5-1c88421de160',
                         status: row['status'] || '접수',
                         order_price: parseNumber(row['order_price']) || 0,
@@ -129,8 +148,11 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
             // The server returned 415 for application/json, likely expecting multipart/form-data (file upload) for /import/ endpoint
             const formData = new FormData();
 
+            // _channel_name_text는 미리보기용 내부 필드이므로 DB 전송 전 제거
+            const uploadData = parsedData.map(({ _channel_name_text, ...rest }) => rest);
+
             // Create a JSON file from the parsed data
-            const jsonBlob = new Blob([JSON.stringify(parsedData)], { type: 'application/json' });
+            const jsonBlob = new Blob([JSON.stringify(uploadData)], { type: 'application/json' });
             formData.append('file', jsonBlob, 'import_data.json'); // Directus import usually expects 'file'
 
             // 📍 로컬/프로덕션 환경에 따른 API URL 설정
@@ -240,6 +262,8 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                             <TableHead>고객명</TableHead>
                                             <TableHead>요청일시</TableHead>
                                             <TableHead>연락처</TableHead>
+                                            <TableHead>대분류</TableHead>
+                                            <TableHead>채널명</TableHead>
                                             <TableHead>서비스</TableHead>
                                             <TableHead>작업상태</TableHead>
                                             <TableHead className="text-right">판매금액</TableHead>
@@ -255,6 +279,8 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                                 <TableCell>{row.customer_name}</TableCell>
                                                 <TableCell>{row.order_date}</TableCell>
                                                 <TableCell>{row.phone}</TableCell>
+                                                <TableCell>{row.service_category}</TableCell>
+                                                <TableCell>{row._channel_name_text}{row.channel_name ? ` (ID: ${row.channel_name})` : ' ⚠️ 미매칭'}</TableCell>
                                                 <TableCell>{row.service_type}</TableCell>
                                                 <TableCell>{row.status}</TableCell>
                                                 <TableCell className="text-right">{row.order_price?.toLocaleString()}</TableCell>

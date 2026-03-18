@@ -112,6 +112,7 @@ export default function OrderListPage() {
             serviceCategory: '', // 서비스구분 검색
             partnerName: '',
             partnerId: partnerIdParam || '',
+            channelId: '',
             customerName: '',
             phone: '',
             address: '',
@@ -182,6 +183,9 @@ export default function OrderListPage() {
                 filter._and.push({ partner: { id: { _eq: searchParams.partnerId } } });
             } else if (searchParams.partnerName) {
                 filter._and.push({ partner: { first_name: { _icontains: searchParams.partnerName.trim() } } });
+            }
+            if (searchParams.channelId) {
+                filter._and.push({ channel_name: { id: { _eq: searchParams.channelId } } });
             }
             if (searchParams.address) {
                 filter._and.push({ address: { _icontains: searchParams.address.trim() } });
@@ -272,6 +276,7 @@ export default function OrderListPage() {
             serviceCategory: '',
             partnerName: '',
             partnerId: '',
+            channelId: '',
             customerName: '',
             phone: '',
             address: '',
@@ -453,8 +458,9 @@ export default function OrderListPage() {
             '작업상태': '',
             '파트너': '',
             '팀장명': '',
+            '채널명': '',
             '수수료구분': '',
-            '판매금액': totalAmounts.order_price, // 숫자 자체로 저장 (엑셀 서식 적용 가능)
+            '판매금액': totalAmounts.order_price,
             '부가세': totalAmounts.vat,
             '수수료': '',
             '정산금액': totalAmounts.rel_settlement_amount,
@@ -477,7 +483,7 @@ export default function OrderListPage() {
 
                 {isSearchExpanded && (
                     <form onSubmit={handleSearch}>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                             <div className="sm:col-span-2 lg:col-span-2">
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">요청날짜</label>
                                 <div className="flex items-center gap-2">
@@ -525,14 +531,21 @@ export default function OrderListPage() {
                             </div>
 
                             <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-1">채널명</label>
+                                <ChannelCombobox
+                                    value={searchParams.channelId}
+                                    onChange={(val) => setSearchParams({ ...searchParams, channelId: val })}
+                                    placeholder="채널 선택"
+                                />
+                            </div>
+
+                            <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">파트너명</label>
                                 <PartnerCombobox
                                     value={searchParams.partnerId}
                                     onChange={(val) => setSearchParams({ ...searchParams, partnerId: val, partnerName: '' })}
                                 />
                             </div>
-
-
 
                             <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">고객명</label>
@@ -684,6 +697,7 @@ export default function OrderListPage() {
                                 <TableHead className="w-[100px] text-center">서비스구분</TableHead>
                                 <TableHead className="w-[120px] text-center">서비스항목</TableHead>
                                 <TableHead className="w-[80px] text-center">작업상태</TableHead>
+                                <TableHead className="w-[120px] text-center">채널명</TableHead>
                                 <TableHead className="w-[100px] text-center">파트너</TableHead>
                                 <TableHead className="w-[100px] text-center">팀장명</TableHead>
                                 <TableHead className="w-[100px] text-center">결제수단</TableHead>
@@ -707,13 +721,13 @@ export default function OrderListPage() {
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={15} className="h-32 text-center text-gray-500">
+                                    <TableCell colSpan={16} className="h-32 text-center text-gray-500">
                                         데이터를 불러오는 중입니다...
                                     </TableCell>
                                 </TableRow>
                             ) : orders.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={15} className="h-32 text-center text-gray-500">
+                                    <TableCell colSpan={16} className="h-32 text-center text-gray-500">
                                         검색 결과가 없습니다.
                                     </TableCell>
                                 </TableRow>
@@ -749,6 +763,7 @@ export default function OrderListPage() {
                                                 {order.status}
                                             </Badge>
                                         </TableCell>
+                                        <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.channel_name?.channel_name || '-'}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.partner?.first_name || '-'}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.partner?.last_name || '-'}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>
