@@ -859,7 +859,7 @@ export default function OrderListPage() {
                 onUpdate={handleOrderUpdate}
             />
 
-            <Dialog open={isBulkUpdateOpen} onOpenChange={setIsBulkUpdateOpen}>
+            <Dialog open={isBulkUpdateOpen} onOpenChange={(open) => { setIsBulkUpdateOpen(open); if (!open) setBulkUpdatePartnerId(''); }}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>파트너 일괄 변경</DialogTitle>
@@ -881,7 +881,7 @@ export default function OrderListPage() {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isBulkChannelUpdateOpen} onOpenChange={setIsBulkChannelUpdateOpen}>
+            <Dialog open={isBulkChannelUpdateOpen} onOpenChange={(open) => { setIsBulkChannelUpdateOpen(open); if (!open) setBulkUpdateChannelId(''); }}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
                         <DialogTitle>채널 일괄 변경</DialogTitle>
