@@ -22,6 +22,60 @@ import { Textarea } from "@/components/ui/textarea";
 import PartnerCombobox from './PartnerCombobox';
 import { useOrderStatuses } from '../hooks/useOrderStatuses';
 
+// ✅ 컴포넌트 밖에 정의해야 re-render 시 unmount/remount 없이 포커스 유지됨
+const NumberInput = ({ name, value, readOnly, className, placeholder = "0", focusedField, setFocusedField, onChange, formatNumber }) => {
+    const displayValue = focusedField === name ? value : formatNumber(value);
+    return (
+        <Input
+            type="text"
+            name={name}
+            value={displayValue}
+            onChange={onChange}
+            onFocus={() => setFocusedField(name)}
+            onBlur={() => setFocusedField(null)}
+            readOnly={readOnly}
+            placeholder={placeholder}
+            className={className}
+        />
+    );
+};
+
+const FormRow = ({ label, children }) => (
+    <div className="border-b border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center">
+            <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
+                {label}
+            </div>
+            <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
+                {children}
+            </div>
+        </div>
+    </div>
+);
+
+const FormRowPair = ({ label1, children1, label2, children2 }) => (
+    <div className="border-b border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:divide-x sm:divide-slate-200">
+            <div className="flex flex-col sm:flex-row sm:items-center flex-1 border-b border-slate-100 sm:border-b-0">
+                <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
+                    {label1}
+                </div>
+                <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
+                    {children1}
+                </div>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center flex-1">
+                <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
+                    {label2}
+                </div>
+                <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
+                    {children2}
+                </div>
+            </div>
+        </div>
+    </div>
+);
+
 export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate }) {
     const { statuses: ORDER_STATUSES } = useOrderStatuses();
     const [order, setOrder] = useState(null);
@@ -31,13 +85,21 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     const [channels, setChannels] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
 
+    // 포커스된 입력 필드 추적
+    const [focusedField, setFocusedField] = useState(null);
+
+    // ✅ 초기 로드 중인지 추적
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+
     useEffect(() => {
         if (isOpen) {
             fetchChannels();
             fetchPaymentMethodField();
             if (orderId) {
+                setIsInitialLoad(true); // ✅ 수정 모드: 초기 로드 활성화
                 fetchOrder();
             } else {
+                setIsInitialLoad(false); // ✅ 신규 등록: 바로 자동 계산 활성화
                 setOrder(null);
                 const initialData = {
                     status: '접수',
@@ -56,6 +118,8 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                     vat: 0,
                     rel_settlement_amount: 0,
                     rel_commission_amount: 0,
+                    channel_fee_amount: 0,
+                    net_profit: 0,
                     cstm_memo: '',
                     memo: '',
                 };
@@ -68,17 +132,24 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     const fetchChannels = async () => {
         try {
             const response = await client.request(readItems('chnnl_mstr', {
-                limit: 100, fields: ['id', 'channel_name'], sort: ['channel_name']
+                limit: 100,
+                fields: ['id', 'channel_name', 'channel_fee_rate'],
+                filter: { del_yn: { _neq: 'Y' } },
+                sort: ['channel_name']
             }));
             setChannels(response);
-        } catch (error) { console.error("채널 목록 조회 실패:", error); }
+        } catch (error) {
+            console.error("채널 목록 조회 실패:", error);
+        }
     };
 
     const fetchPaymentMethodField = async () => {
         try {
             const response = await client.request(readField('ord_mstr', 'payment_method'));
             setPaymentMethods(response.meta?.options?.choices || []);
-        } catch (error) { console.error("결제 수단 필드 정보 로드 실패:", error); }
+        } catch (error) {
+            console.error("결제 수단 필드 정보 로드 실패:", error);
+        }
     };
 
     const formatUserName = (user) => {
@@ -110,11 +181,18 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                 vat: response.vat || 0,
                 rel_settlement_amount: response.rel_settlement_amount || 0,
                 rel_commission_amount: response.rel_commission_amount || 0,
+                channel_fee_amount: response.channel_fee_amount || 0,
+                net_profit: response.net_profit || 0,
                 cstm_memo: response.cstm_memo || '',
                 memo: response.memo || '',
             };
             setFormData(initialData);
             setInitialOrder(initialData);
+
+            // ✅ 데이터 로드 완료 후 100ms 뒤 자동 계산 활성화
+            setTimeout(() => {
+                setIsInitialLoad(false);
+            }, 100);
         } catch (error) {
             console.error("주문 상세 조회 실패:", error);
         } finally {
@@ -130,6 +208,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     const handleSelectChange = (name, value) => {
         setFormData(prev => {
             const newData = { ...prev, [name]: value };
+
             if (name === 'payment_method') {
                 const purePrice = Number(prev.order_price || 0) - Number(prev.vat || 0);
                 let newVat = 0;
@@ -137,51 +216,124 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                 newData.vat = newVat;
                 newData.order_price = purePrice + newVat;
             }
+
+            // 채널 변경 시 공급업체 수수료 자동 계산
+            if (name === 'channel_name') {
+                const selectedChannel = channels.find(c => String(c.id) === String(value));
+                const channelFeeRate = selectedChannel?.channel_fee_rate || 0;
+                const orderPrice = Number(prev.order_price || 0);
+                const vat = Number(prev.vat || 0);
+                const purePrice = orderPrice - vat;
+
+                // ✅ 공급업체 수수료 = 순수금액 × 채널 수수료율
+                newData.channel_fee_amount = Math.floor(purePrice * (channelFeeRate / 100));
+
+                // ✅ 최종 순이익 계산
+                // rel_commission_amount가 부가세 포함이면 제외하고 계산
+                const baseCommission = prev.payment_method === 'BILLING_DOC'
+                    ? (Number(prev.rel_commission_amount) || 0) - vat
+                    : (Number(prev.rel_commission_amount) || 0);
+                newData.net_profit = baseCommission - newData.channel_fee_amount;
+            }
+
             return newData;
         });
     };
 
     const formatNumber = (num) => {
-        if (!num) return '';
+        if (!num && num !== 0) return '';
         return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
     };
 
     const handleNumberChange = (e) => {
         const { name, value } = e.target;
         const rawValue = value.replace(/,/g, '');
-        if (isNaN(rawValue)) return;
-        setFormData(prev => ({ ...prev, [name]: Number(rawValue) }));
+        if (rawValue && isNaN(rawValue)) return;
+
+        const numValue = rawValue === '' ? 0 : Number(rawValue);
+        setFormData(prev => ({ ...prev, [name]: numValue }));
     };
 
+    // 팀장 수수료 자동 계산
     useEffect(() => {
-        if (formData.commission_type === '수동') return;
-        const purePrice = (Number(formData.order_price) || 0) - (Number(formData.vat) || 0);
+        // ✅ 초기 로드 중이거나 수동 모드면 계산 안 함
+        if (isInitialLoad || formData.commission_type === '수동') return;
+
+        const orderPrice = Number(formData.order_price) || 0;
+        const vat = Number(formData.vat) || 0;
+        // ✅ 부가세 제외 순수 금액
+        const purePrice = orderPrice - vat;
         const commissionVal = Number(formData.commission) || 0;
+
         let settlementAmount = 0;
         let commissionAmount = 0;
+        let relCommissionAmount = 0;
+
         if (formData.commission_type === '비율') {
+            // ✅ 팀장 정산수수료 = 순수금액 × 팀장 비율
             commissionAmount = Math.floor(purePrice * (commissionVal / 100));
             settlementAmount = purePrice - commissionAmount;
         } else {
+            // 금액 타입
             commissionAmount = commissionVal;
-            settlementAmount = purePrice - commissionAmount;
+            settlementAmount = purePrice - commissionVal;
         }
+
+        // ✅ 세금계산서일 경우 팀장 정산수수료에 부가세 포함
+        relCommissionAmount = formData.payment_method === 'BILLING_DOC'
+            ? commissionAmount + vat
+            : commissionAmount;
+
         setFormData(prev => {
-            if (prev.rel_settlement_amount === settlementAmount && prev.rel_commission_amount === commissionAmount) return prev;
-            return { ...prev, rel_settlement_amount: settlementAmount, rel_commission_amount: commissionAmount };
+            if (prev.rel_settlement_amount === settlementAmount &&
+                prev.rel_commission_amount === relCommissionAmount) return prev;
+
+            // ✅ 공급업체 수수료 = 순수금액 × 채널 수수료율
+            const selectedChannel = channels.find(c => String(c.id) === String(prev.channel_name));
+            const channelFeeRate = selectedChannel?.channel_fee_rate || 0;
+            const channelFeeAmount = Math.floor(purePrice * (channelFeeRate / 100));
+
+            // ✅ 최종 순이익 = 팀장 정산수수료(부가세 제외) - 공급업체 수수료
+            const netProfit = commissionAmount - channelFeeAmount;
+
+            return {
+                ...prev,
+                rel_settlement_amount: settlementAmount,
+                rel_commission_amount: relCommissionAmount,
+                channel_fee_amount: channelFeeAmount,
+                net_profit: netProfit
+            };
         });
-    }, [formData.order_price, formData.commission, formData.commission_type]);
+    }, [
+        isInitialLoad, // ✅ 의존성 추가
+        formData.order_price,
+        formData.commission,
+        formData.commission_type,
+        formData.vat,
+        formData.payment_method,
+        formData.channel_name,
+        channels
+    ]);
 
     const handleSubmit = async () => {
         try {
             setLoading(true);
-            if (!formData.customer_name) { alert("고객명을 입력해주세요."); setLoading(false); return; }
+            if (!formData.customer_name) {
+                alert("고객명을 입력해주세요.");
+                setLoading(false);
+                return;
+            }
+
             if (orderId) {
                 const payload = {};
                 Object.keys(formData).forEach(key => {
                     if (formData[key] !== initialOrder[key]) payload[key] = formData[key];
                 });
-                if (Object.keys(payload).length === 0) { alert("변경된 내용이 없습니다."); setLoading(false); return; }
+                if (Object.keys(payload).length === 0) {
+                    alert("변경된 내용이 없습니다.");
+                    setLoading(false);
+                    return;
+                }
                 await client.request(updateItem('ord_mstr', orderId, payload));
                 alert("수정되었습니다.");
             } else {
@@ -199,48 +351,6 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
     };
 
     if (!isOpen) return null;
-
-    // ✅ 반응형 행 컴포넌트
-    // 모바일: 라벨 위, 값 아래 (1열)
-    // 데스크탑: 라벨 왼쪽, 값 오른쪽 (2열)
-    const FormRow = ({ label, children, fullWidth = false }) => (
-        <div className={`border-b border-slate-200 ${fullWidth ? '' : ''}`}>
-            <div className="flex flex-col sm:flex-row sm:items-center">
-                <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
-                    {label}
-                </div>
-                <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
-                    {children}
-                </div>
-            </div>
-        </div>
-    );
-
-    // ✅ 모바일: 1열 쌓기 / 데스크탑: 2열 나란히
-    const FormRowPair = ({ label1, children1, label2, children2 }) => (
-        <div className="border-b border-slate-200">
-            <div className="flex flex-col sm:flex-row sm:divide-x sm:divide-slate-200">
-                {/* 왼쪽 */}
-                <div className="flex flex-col sm:flex-row sm:items-center flex-1 border-b border-slate-100 sm:border-b-0">
-                    <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
-                        {label1}
-                    </div>
-                    <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
-                        {children1}
-                    </div>
-                </div>
-                {/* 오른쪽 */}
-                <div className="flex flex-col sm:flex-row sm:items-center flex-1">
-                    <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
-                        {label2}
-                    </div>
-                    <div className="px-4 py-2.5 sm:py-3 flex-1 min-w-0">
-                        {children2}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -319,19 +429,39 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                 }
                             />
 
-                            {/* 채널명 */}
-                            <FormRow label="채널명">
-                                <Select
-                                    value={formData.channel_name ? String(formData.channel_name) : 'NONE'}
-                                    onValueChange={(val) => handleSelectChange('channel_name', val === 'NONE' ? '' : val)}
-                                >
-                                    <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="채널 선택" /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="NONE">선택 안함</SelectItem>
-                                        {channels.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.channel_name}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </FormRow>
+                            {/* 채널명 / 공급업체 수수료 */}
+                            <FormRowPair
+                                label1="채널명 (공급업체)"
+                                children1={
+                                    <Select
+                                        value={formData.channel_name ? String(formData.channel_name) : 'NONE'}
+                                        onValueChange={(val) => handleSelectChange('channel_name', val === 'NONE' ? '' : val)}
+                                    >
+                                        <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="채널 선택" /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="NONE">선택 안함</SelectItem>
+                                            {channels.map(c => (
+                                                <SelectItem key={c.id} value={String(c.id)}>
+                                                    {c.channel_name} {c.channel_fee_rate > 0 && `(${c.channel_fee_rate}%)`}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                }
+                                label2="공급업체 수수료"
+                                children2={
+                                    <NumberInput
+                                        name="channel_fee_amount"
+                                        value={formData.channel_fee_amount}
+                                        readOnly={true}
+                                        className="h-9 w-full text-right font-bold text-sm bg-slate-50 text-red-600"
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        onChange={handleNumberChange}
+                                        formatNumber={formatNumber}
+                                    />
+                                }
+                            />
 
                             {/* 결제수단 / 판매금액 */}
                             <FormRowPair
@@ -350,13 +480,21 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                 }
                                 label2="판매 금액"
                                 children2={
-                                    <Input type="text" name="order_price" value={formatNumber(formData.order_price)} onChange={handleNumberChange} placeholder="0" className="h-9 w-full text-right font-medium text-sm" />
+                                    <NumberInput
+                                        name="order_price"
+                                        value={formData.order_price}
+                                        className="h-9 w-full text-right font-medium text-sm"
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        onChange={handleNumberChange}
+                                        formatNumber={formatNumber}
+                                    />
                                 }
                             />
 
-                            {/* 수수료타입 / 수수료 */}
+                            {/* 팀장 수수료타입 / 팀장 수수료 */}
                             <FormRowPair
-                                label1="수수료 타입"
+                                label1="팀장 수수료 타입"
                                 children1={
                                     <Select value={formData.commission_type} onValueChange={(val) => handleSelectChange('commission_type', val)}>
                                         <SelectTrigger className="h-9 w-full text-sm"><SelectValue /></SelectTrigger>
@@ -367,47 +505,85 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                         </SelectContent>
                                     </Select>
                                 }
-                                label2={formData.commission_type === '비율' ? '수수료 (%)' : '수수료 (원)'}
+                                label2={formData.commission_type === '비율' ? '팀장 수수료 (%)' : '팀장 수수료 (원)'}
                                 children2={
-                                    <Input type="text" name="commission" value={formatNumber(formData.commission)} onChange={handleNumberChange} placeholder="0" className="h-9 w-full text-right font-medium text-sm" />
-                                }
-                            />
-
-                            {/* 부가세 / 정산금액 */}
-                            <FormRowPair
-                                label1="부가세"
-                                children1={
-                                    <Input type="text" name="vat" value={formatNumber(formData.vat)} onChange={handleNumberChange} placeholder="0" className="h-9 w-full text-right font-medium text-sm" />
-                                }
-                                label2="정산 금액 (지급액)"
-                                children2={
-                                    <Input
-                                        type="text" name="rel_settlement_amount"
-                                        value={formatNumber(formData.rel_settlement_amount)}
-                                        readOnly={formData.commission_type !== '수동'}
+                                    <NumberInput
+                                        name="commission"
+                                        value={formData.commission}
+                                        className="h-9 w-full text-right font-medium text-sm"
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
                                         onChange={handleNumberChange}
-                                        className={`h-9 w-full text-right font-bold text-sm ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
+                                        formatNumber={formatNumber}
                                     />
                                 }
                             />
 
-                            {/* 수수료금액 */}
-                            <FormRow label="수수료 금액 (수익)">
-                                <Input
-                                    type="text" name="rel_commission_amount"
-                                    value={formatNumber(formData.rel_commission_amount)}
-                                    readOnly={formData.commission_type !== '수동'}
-                                    onChange={handleNumberChange}
-                                    className={`h-9 w-full sm:max-w-xs text-right font-bold text-sm ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
-                                />
-                            </FormRow>
+                            {/* 부가세 / 팀장 정산금액 */}
+                            <FormRowPair
+                                label1="부가세"
+                                children1={
+                                    <NumberInput
+                                        name="vat"
+                                        value={formData.vat}
+                                        className="h-9 w-full text-right font-medium text-sm"
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        onChange={handleNumberChange}
+                                        formatNumber={formatNumber}
+                                    />
+                                }
+                                label2="팀장 정산금액 (팀장)"
+                                children2={
+                                    <NumberInput
+                                        name="rel_settlement_amount"
+                                        value={formData.rel_settlement_amount}
+                                        readOnly={formData.commission_type !== '수동'}
+                                        className={`h-9 w-full text-right font-bold text-sm ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        onChange={handleNumberChange}
+                                        formatNumber={formatNumber}
+                                    />
+                                }
+                            />
+
+                            {/* 팀장 정산수수료 / 최종 순이익 */}
+                            <FormRowPair
+                                label1="팀장 정산수수료 (우리 수취)"
+                                children1={
+                                    <NumberInput
+                                        name="rel_commission_amount"
+                                        value={formData.rel_commission_amount}
+                                        readOnly={formData.commission_type !== '수동'}
+                                        className={`h-9 w-full text-right font-bold text-sm ${formData.commission_type !== '수동' ? 'bg-slate-50 text-slate-500' : ''}`}
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        onChange={handleNumberChange}
+                                        formatNumber={formatNumber}
+                                    />
+                                }
+                                label2="최종 순이익"
+                                children2={
+                                    <NumberInput
+                                        name="net_profit"
+                                        value={formData.net_profit}
+                                        readOnly={true}
+                                        className="h-9 w-full text-right font-bold text-lg bg-blue-50 text-blue-700 border-blue-200"
+                                        focusedField={focusedField}
+                                        setFocusedField={setFocusedField}
+                                        onChange={handleNumberChange}
+                                        formatNumber={formatNumber}
+                                    />
+                                }
+                            />
 
                             {/* 고객메모 */}
                             <FormRow label="고객 메모">
                                 <Textarea name="cstm_memo" value={formData.cstm_memo || ''} onChange={handleChange} className="min-h-[80px] resize-none w-full text-sm" />
                             </FormRow>
 
-                            {/* 관리자메모 - 마지막이라 border-b 제거 */}
+                            {/* 관리자메모 */}
                             <div>
                                 <div className="flex flex-col sm:flex-row sm:items-start">
                                     <div className="bg-slate-50 px-4 py-2.5 sm:py-3 sm:w-36 sm:min-w-[9rem] shrink-0 font-medium text-slate-600 text-sm border-b border-slate-100 sm:border-b-0 sm:border-r sm:border-slate-200">
@@ -441,7 +617,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                 )}
 
                 <DialogFooter className="px-6 py-4 bg-slate-50 border-t border-slate-200 sm:justify-center gap-2 shrink-0">
-                    <Button variant="outline" onClick={onClose} className="px-8 border-slate-300 text-slate-700 hover:bg-slate-100">취소</Button>
+                    <Button variant="outline" onClick={onClose} className="px-8 border-slate-300 text-slate-700 hover:bg-slate-100">닫기</Button>
                     <Button onClick={handleSubmit} disabled={loading} className="px-8 bg-blue-600 hover:bg-blue-700 text-white">저장</Button>
                 </DialogFooter>
             </DialogContent>

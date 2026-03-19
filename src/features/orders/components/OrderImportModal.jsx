@@ -89,6 +89,8 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                         commission: parseNumber(row['commission']) || 0,
                         rel_settlement_amount: parseNumber(row['rel_settlement_amount']) || 0,
                         rel_commission_amount: parseNumber(row['rel_commission_amount']) || 0,
+                        channel_fee_amount: parseNumber(row['channel_fee_amount']) || 0, // ✅ 추가
+                        net_profit: parseNumber(row['net_profit']) || 0, // ✅ 추가
                         cstm_memo: row['cstm_memo'] || row['상담메모'] || '',
                     };
                 });
@@ -116,14 +118,9 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
             date = val;
         } else {
             // Try to parse string or number
-            // Handle "YYYY-MM-DD HH:mm:ss" specific format if needed, but new Date() usually handles standard ISO
-            // If comma is present (invalid date string), it might fail, but let's assume standard format
             const parsed = new Date(val);
             if (isNaN(parsed.getTime())) {
-                // If direct parsing fails, try to handle "2026-02-15 00:00:00" manually if needed, 
-                // but usually browsers handle it. 
-                // Let's fallback to current date or null if strictly needed, but user wants robustness.
-                // Assuming string might be "YYYY-MM-DD ..."
+                // Manual parsing for "YYYY-MM-DD HH:mm:ss" format
                 const parts = String(val).split(/[- :]/);
                 if (parts.length >= 3) {
                     date = new Date(parts[0], parts[1] - 1, parts[2], parts[3] || 0, parts[4] || 0, parts[5] || 0);
@@ -144,8 +141,6 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
 
         setLoading(true);
         try {
-            // Using fetch with relative path '/utils' which is proxied in vite.config.js to avoid CORS
-            // The server returned 415 for application/json, likely expecting multipart/form-data (file upload) for /import/ endpoint
             const formData = new FormData();
 
             // _channel_name_text는 미리보기용 내부 필드이므로 DB 전송 전 제거
@@ -153,19 +148,14 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
 
             // Create a JSON file from the parsed data
             const jsonBlob = new Blob([JSON.stringify(uploadData)], { type: 'application/json' });
-            formData.append('file', jsonBlob, 'import_data.json'); // Directus import usually expects 'file'
+            formData.append('file', jsonBlob, 'import_data.json');
 
             // 📍 로컬/프로덕션 환경에 따른 API URL 설정
             const API_BASE = import.meta.env.DEV ? '/utils' : 'https://api.cleanspartners.com/utils';
 
             const response = await fetch(`${API_BASE}/import/ord_mstr`, {
                 method: 'POST',
-                // Content-Type header should be omitted for FormData to set boundary automatically
                 headers: {
-                    // Add Authorization if needed, assuming Directus token might be required? 
-                    // The user provided a raw URL so we start with no auth or try to use client token if relevant.
-                    // Usually custom endpoints in Directus might need the token.
-                    // Let's try adding the token if it exists in local storage or client.
                     'Authorization': `Bearer ${await client.getToken()}`
                 },
                 body: formData
@@ -181,12 +171,10 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
             try {
                 result = responseText ? JSON.parse(responseText) : { data: 'success' };
             } catch (e) {
-                // If response is not JSON, but status is ok, treat as success
                 console.warn("Response is not JSON:", responseText);
                 result = { data: 'success' };
             }
 
-            // Assuming result contains count or success status
             setSuccessCount(parsedData.length);
             setStep('result');
             if (onUpdate) onUpdate();
@@ -215,7 +203,7 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
                 <DialogHeader>
                     <DialogTitle>엑셀 일괄 등록</DialogTitle>
                     <DialogDescription className="sr-only">
@@ -255,7 +243,7 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                 <h3 className="font-semibold text-slate-700">데이터 미리보기 (상위 5건)</h3>
                                 <span className="text-xs text-slate-500">총 {parsedData.length}건</span>
                             </div>
-                            <div className="border rounded-md overflow-hidden">
+                            <div className="border rounded-md overflow-x-auto">
                                 <Table>
                                     <TableHeader className="bg-slate-50">
                                         <TableRow>
@@ -270,6 +258,8 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                             <TableHead className="text-right">수수료</TableHead>
                                             <TableHead className="text-right">정산금액</TableHead>
                                             <TableHead className="text-right">수수료금액</TableHead>
+                                            <TableHead className="text-right">공급업체수수료</TableHead>
+                                            <TableHead className="text-right">최종순이익</TableHead>
                                             <TableHead>상담메모</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -287,6 +277,8 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                                 <TableCell className="text-right">{row.commission?.toLocaleString()}</TableCell>
                                                 <TableCell className="text-right">{row.rel_settlement_amount?.toLocaleString()}</TableCell>
                                                 <TableCell className="text-right">{row.rel_commission_amount?.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">{row.channel_fee_amount?.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right">{row.net_profit?.toLocaleString()}</TableCell>
                                                 <TableCell>{row.cstm_memo}</TableCell>
                                             </TableRow>
                                         ))}

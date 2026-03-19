@@ -216,7 +216,9 @@ export default function OrderListPage() {
                         'date_created',
                         'cstm_memo',
                         'payment_method',
-                        'vat'
+                        'vat',
+                        'channel_fee_amount',
+                        'net_profit'
                     ],
                     filter: filter._and.length > 0 ? filter : {},
                     sort: sortParam,
@@ -226,7 +228,7 @@ export default function OrderListPage() {
                 client.request(aggregate('ord_mstr', {
                     aggregate: {
                         countDistinct: 'id',
-                        sum: ['order_price', 'vat', 'rel_settlement_amount', 'rel_commission_amount']
+                        sum: ['order_price', 'vat', 'rel_settlement_amount', 'rel_commission_amount', 'channel_fee_amount', 'net_profit']
                     },
                     query: {
                         filter: filter._and.length > 0 ? filter : {}
@@ -244,7 +246,9 @@ export default function OrderListPage() {
                 order_price: sums?.order_price ? Number(sums.order_price) : 0,
                 vat: sums?.vat ? Number(sums.vat) : 0,
                 rel_settlement_amount: sums?.rel_settlement_amount ? Number(sums.rel_settlement_amount) : 0,
-                rel_commission_amount: sums?.rel_commission_amount ? Number(sums.rel_commission_amount) : 0
+                rel_commission_amount: sums?.rel_commission_amount ? Number(sums.rel_commission_amount) : 0,
+                channel_fee_amount: sums?.channel_fee_amount ? Number(sums.channel_fee_amount) : 0,
+                net_profit: sums?.net_profit ? Number(sums.net_profit) : 0
             });
 
         } catch (error) {
@@ -697,16 +701,18 @@ export default function OrderListPage() {
                                 <TableHead className="w-[100px] text-center">서비스구분</TableHead>
                                 <TableHead className="w-[120px] text-center">서비스항목</TableHead>
                                 <TableHead className="w-[80px] text-center">작업상태</TableHead>
-                                <TableHead className="w-[120px] text-center">채널명</TableHead>
+                                <TableHead className="w-[100px] text-center">채널명</TableHead>
                                 <TableHead className="w-[100px] text-center">파트너</TableHead>
                                 <TableHead className="w-[100px] text-center">팀장명</TableHead>
                                 <TableHead className="w-[100px] text-center">결제수단</TableHead>
                                 <TableHead className="w-[100px] text-center">수수료구분</TableHead>
                                 <TableHead className="w-[120px] text-right">판매금액</TableHead>
-                                <TableHead className="w-[120px] text-right">부가세</TableHead>
-                                <TableHead className="w-[120px] text-right">수수료</TableHead>
-                                <TableHead className="w-[120px] text-right">정산금액</TableHead>
-                                <TableHead className="w-[120px] text-right">수수료금액</TableHead>
+                                <TableHead className="w-[100px] text-right">부가세</TableHead>
+                                <TableHead className="w-[100px] text-right">수수료</TableHead>
+                                <TableHead className="w-[120px] text-right">팀장 정산금액</TableHead>
+                                <TableHead className="w-[120px] text-right">팀장 정산수수료</TableHead>
+                                <TableHead className="w-[120px] text-right text-orange-600">공급업체수수료</TableHead>
+                                <TableHead className="w-[120px] text-right text-blue-700">순이익</TableHead>
                                 <TableHead
                                     className="w-[150px] text-center cursor-pointer hover:bg-gray-200 transition-colors group"
                                     onClick={() => handleSort('date_created')}
@@ -721,13 +727,13 @@ export default function OrderListPage() {
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={16} className="h-32 text-center text-gray-500">
+                                    <TableCell colSpan={18} className="h-32 text-center text-gray-500">
                                         데이터를 불러오는 중입니다...
                                     </TableCell>
                                 </TableRow>
                             ) : orders.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={16} className="h-32 text-center text-gray-500">
+                                    <TableCell colSpan={18} className="h-32 text-center text-gray-500">
                                         검색 결과가 없습니다.
                                     </TableCell>
                                 </TableRow>
@@ -767,7 +773,6 @@ export default function OrderListPage() {
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.partner?.first_name || '-'}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>{order.partner?.last_name || '-'}</TableCell>
                                         <TableCell className="text-center" onClick={() => handleRowClick(order.id)}>
-                                            {/* 📍 코드값 매핑 표시 */}
                                             {order.payment_method === 'CARD' ? '카드' :
                                                 order.payment_method === 'CASH' ? '현금/계좌이체' :
                                                     order.payment_method === 'BILLING_DOC' ? '현금영수증/세금계산서' :
@@ -784,6 +789,8 @@ export default function OrderListPage() {
                                         </TableCell>
                                         <TableCell className="text-right font-medium text-red-600">{formatCurrency(order.rel_settlement_amount)}</TableCell>
                                         <TableCell className="text-right">{formatCurrency(order.rel_commission_amount)}</TableCell>
+                                        <TableCell className="text-right font-medium text-orange-600">{formatCurrency(order.channel_fee_amount || 0)}</TableCell>
+                                        <TableCell className="text-right font-bold text-blue-700">{formatCurrency(order.net_profit || 0)}</TableCell>
                                         <TableCell className="text-center text-gray-500">{formatDate(order.date_created)}</TableCell>
                                     </TableRow>
                                 ))
@@ -791,12 +798,14 @@ export default function OrderListPage() {
                         </TableBody>
                         <TableFooter className="bg-gray-50 border-t-2 border-gray-200">
                             <TableRow className="hover:bg-gray-50 font-bold text-gray-700">
-                                <TableCell colSpan={12} className="text-center">합계</TableCell>
+                                <TableCell colSpan={13} className="text-center">합계</TableCell>
                                 <TableCell className="text-right text-blue-600">{formatCurrency(totalAmounts.order_price)}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(totalAmounts.vat)}</TableCell>
                                 <TableCell className="text-right">-</TableCell>
                                 <TableCell className="text-right text-red-600">{formatCurrency(totalAmounts.rel_settlement_amount)}</TableCell>
                                 <TableCell className="text-right">{formatCurrency(totalAmounts.rel_commission_amount)}</TableCell>
+                                <TableCell className="text-right text-orange-600">{formatCurrency(totalAmounts.channel_fee_amount)}</TableCell>
+                                <TableCell className="text-right text-blue-700">{formatCurrency(totalAmounts.net_profit)}</TableCell>
                                 <TableCell className="text-center">-</TableCell>
                             </TableRow>
                         </TableFooter>
