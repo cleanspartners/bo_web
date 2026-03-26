@@ -270,9 +270,7 @@ export default function UserListPage() {
             '권한그룹명': user.role?.name || '-',
             '회사명': user.first_name || '-',
             '팀장명': user.last_name || '-',
-            '팀장명': user.last_name || '-',
             '활동지역': userDetailsMap[user.id]?.actv_rgon || '-',
-            '부서정보': user.title || '-',
             '부서정보': user.title || '-',
             '등록상태': userDetailsMap[user.id] ? 'Y' : 'N',
             '마지막 접속일시': user.last_access ? new Date(user.last_access).toLocaleString() : '-'
