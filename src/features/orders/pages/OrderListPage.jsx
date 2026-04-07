@@ -479,7 +479,7 @@ export default function OrderListPage() {
     };
 
     return (
-        <div className="space-y-4 p-4 bg-gray-50 flex flex-col h-auto md:h-full">
+        <div className="space-y-4 p-4 bg-gray-50 flex flex-col">
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
                     <h2 className="text-lg font-bold text-gray-800">조회 조건</h2>
@@ -617,7 +617,7 @@ export default function OrderListPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col min-h-[500px]">
                 <div className="p-3 border-b flex flex-col sm:flex-row justify-between items-center gap-2 bg-gray-50/50">
                     <div className="text-sm font-medium text-gray-600 w-full sm:w-auto text-center sm:text-left">
                         총 <span className="text-blue-600 font-bold">{totalCount}</span> 건
@@ -676,7 +676,7 @@ export default function OrderListPage() {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto">
+                <div className="overflow-auto max-h-[calc(100vh-450px)] min-h-[400px]">
                     <Table>
                         <TableHeader className="sticky top-0 bg-gray-100 z-10 shadow-sm">
                             <TableRow className="bg-gray-100 hover:bg-gray-100 text-xs text-gray-600 font-semibold whitespace-nowrap">

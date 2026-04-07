@@ -281,7 +281,7 @@ export default function UserListPage() {
     };
 
     return (
-        <div className="space-y-4 p-4 bg-gray-50 flex flex-col h-auto md:h-full">
+        <div className="space-y-4 p-4 bg-gray-50 flex flex-col">
             {/* Search Filter Section - Matched to OrderListPage */}
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2">
@@ -354,7 +354,8 @@ export default function UserListPage() {
             </div>
 
             {/* Data Table Section */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
+            {/* Data Table Section */}
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-0">
                 <div className="p-3 border-b flex flex-col sm:flex-row justify-between items-center gap-2 bg-gray-50/50">
                     <div className="text-sm font-medium text-gray-600">
                         관리자 정보 <span className="mx-2 text-gray-300">|</span> 총 <span className="text-blue-600 font-bold">{totalCount}</span> 건
@@ -387,7 +388,7 @@ export default function UserListPage() {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 overflow-auto bg-white min-h-[300px]">
                     <Table>
                         <TableHeader className="sticky top-0 bg-gray-100 z-10 shadow-sm">
                             <TableRow className="bg-gray-100 hover:bg-gray-100 text-xs text-gray-600 font-semibold whitespace-nowrap">
@@ -424,32 +425,32 @@ export default function UserListPage() {
                                 users.map((user, index) => (
                                     <TableRow
                                         key={user.id}
-                                        className="hover:bg-blue-50/50 cursor-pointer transition-colors text-xs"
+                                        className="hover:bg-blue-50/50 cursor-pointer transition-colors text-xs h-10"
                                         onClick={(e) => {
                                             if (e.target.closest('[role="checkbox"]') || e.target.closest('button')) return;
                                             handleRowClick(user);
                                         }}
                                     >
-                                        <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                                        <TableCell className="text-center py-1" onClick={(e) => e.stopPropagation()}>
                                             <Checkbox
                                                 checked={selectedRows.includes(user.id)}
                                                 onCheckedChange={(checked) => handleSelectRow(user.id, checked)}
                                             />
                                         </TableCell>
-                                        <TableCell className="text-center text-gray-500">{index + 1}</TableCell>
-                                        <TableCell className="text-center">{user.role?.name || '-'}</TableCell>
-                                        <TableCell className="text-center font-medium text-blue-600">{user.first_name || '-'}</TableCell>
-                                        <TableCell className="text-center">{user.last_name || '-'}</TableCell>
-                                        <TableCell className="text-center">{userDetailsMap[user.id]?.actv_rgon || '-'}</TableCell>
-                                        <TableCell className="text-center">{user.title || '-'}</TableCell>
-                                        <TableCell className="text-center">
+                                        <TableCell className="text-center text-gray-500 py-1">{index + 1}</TableCell>
+                                        <TableCell className="text-center py-1">{user.role?.name || '-'}</TableCell>
+                                        <TableCell className="text-center font-medium text-blue-600 py-1">{user.first_name || '-'}</TableCell>
+                                        <TableCell className="text-center py-1">{user.last_name || '-'}</TableCell>
+                                        <TableCell className="text-center py-1">{userDetailsMap[user.id]?.actv_rgon || '-'}</TableCell>
+                                        <TableCell className="text-center py-1">{user.title || '-'}</TableCell>
+                                        <TableCell className="text-center py-1">
                                             {userDetailsMap[user.id] ? (
                                                 <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none">Y</Badge>
                                             ) : (
                                                 <Badge variant="outline" className="text-gray-400 border-gray-200">N</Badge>
                                             )}
                                         </TableCell>
-                                        <TableCell className="text-center text-gray-500">
+                                        <TableCell className="text-center text-gray-500 py-1">
                                             {user.last_access ? new Date(user.last_access).toLocaleString() : '-'}
                                         </TableCell>
                                     </TableRow>

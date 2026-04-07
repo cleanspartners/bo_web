@@ -117,7 +117,7 @@ export default function ChannelListPage() {
     };
 
     return (
-        <div className="space-y-4 p-4 bg-gray-50 flex flex-col h-auto md:h-full">
+        <div className="space-y-4 p-4 bg-gray-50 flex flex-col">
             {/* 조회 조건 섹션 */}
             <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-4 border-b pb-2 text-gray-800 font-bold">
@@ -166,7 +166,7 @@ export default function ChannelListPage() {
             </div>
 
             {/* 테이블 섹션 */}
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex-1 flex flex-col min-h-[500px] md:min-h-0">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm flex flex-col min-h-[500px]">
                 <div className="p-3 border-b flex flex-col sm:flex-row justify-between items-center gap-2 bg-gray-50/50">
                     <div className="text-sm font-medium text-gray-600">
                         총 <span className="text-blue-600 font-bold">{totalCount}</span> 건
@@ -187,7 +187,7 @@ export default function ChannelListPage() {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto">
+                <div className="overflow-auto max-h-[calc(100vh-400px)] min-h-[400px]">
                     <Table>
                         <TableHeader className="sticky top-0 bg-gray-100 z-10 text-gray-900">
                             <TableRow>
