@@ -40,10 +40,13 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
         reader.onload = async (e) => {
             try {
                 const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                // ✅ 변경점 1: cellDates: true를 제거하여 자바스크립트가 날짜를 계산하지 않게 함
+                const workbook = XLSX.read(data, { type: 'array' });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                // ✅ 변경점 2: raw: false를 추가하여 엑셀에 보이는 텍스트 그대로(예: 2026-04-07) 읽어옴
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
                 if (jsonData.length === 0) {
                     setError("데이터가 없는 파일입니다.");
@@ -51,19 +54,16 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                     return;
                 }
 
-                // 채널 목록 조회 (채널명 → ID 변환용)
                 const channelList = await client.request(readItems('chnnl_mstr', {
                     fields: ['id', 'channel_name'],
                     filter: { del_yn: { _neq: 'Y' } },
                     limit: -1,
                 }));
-                // { '클린스파트너스(오프라인)': 1, ... } 형태의 맵 생성
                 const channelNameToId = {};
                 channelList.forEach(ch => {
                     channelNameToId[ch.channel_name] = ch.id;
                 });
 
-                // Data Mapping & Transformation
                 const mappedData = jsonData.map(row => {
                     const parseNumber = (val) => {
                         if (!val) return 0;
@@ -76,27 +76,28 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
 
                     return {
                         customer_name: row['customer_name'] || '',
+                        // ✅ 날짜 변환 함수 호출
                         order_date: row['order_date'] ? formatDate(row['order_date']) : null,
                         phone: row['phone'] || '',
                         address: row['address'] || '',
                         service_type: row['service_type'] || '',
                         service_category: row['service_category'] || '',
                         channel_name: channelId,
-                        _channel_name_text: channelNameText, // 미리보기 표시용
+                        _channel_name_text: channelNameText,
                         partner: row['partner'] || 'd6e6568c-48f0-4951-89e5-1c88421de160',
                         status: row['status'] || '접수',
                         order_price: parseNumber(row['order_price']) || 0,
                         commission: parseNumber(row['commission']) || 0,
                         rel_settlement_amount: parseNumber(row['rel_settlement_amount']) || 0,
                         rel_commission_amount: parseNumber(row['rel_commission_amount']) || 0,
-                        channel_fee_amount: parseNumber(row['channel_fee_amount']) || 0, // ✅ 추가
-                        net_profit: parseNumber(row['net_profit']) || 0, // ✅ 추가
+                        channel_fee_amount: parseNumber(row['channel_fee_amount']) || 0,
+                        net_profit: parseNumber(row['net_profit']) || 0,
                         cstm_memo: row['cstm_memo'] || row['상담메모'] || '',
                     };
                 });
 
                 setParsedData(mappedData);
-                setPreviewData(mappedData.slice(0, 5)); // Show first 5 rows
+                setPreviewData(mappedData.slice(0, 5));
                 setStep('preview');
             } catch (err) {
                 console.error("Excel Parse Error:", err);
@@ -108,32 +109,21 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
         reader.readAsArrayBuffer(file);
     };
 
-    // Helper to format date strictly as YYYY-MM-DD HH:mm:ss
-    // Defaults to current time if invalid or missing
+    // ✅ 변경점 3: 날짜 계산 로직 전면 수정
+    // 자바스크립트 Date 객체를 쓰지 않고 문자열 그대로 처리하여 9시간 시차 문제를 원천 봉쇄합니다.
     const formatDate = (val) => {
-        let date;
-        if (!val) {
-            date = new Date(); // Default case
-        } else if (val instanceof Date) {
-            date = val;
-        } else {
-            // Try to parse string or number
-            const parsed = new Date(val);
-            if (isNaN(parsed.getTime())) {
-                // Manual parsing for "YYYY-MM-DD HH:mm:ss" format
-                const parts = String(val).split(/[- :]/);
-                if (parts.length >= 3) {
-                    date = new Date(parts[0], parts[1] - 1, parts[2], parts[3] || 0, parts[4] || 0, parts[5] || 0);
-                } else {
-                    date = new Date();
-                }
-            } else {
-                date = parsed;
-            }
+        if (!val) return null;
+
+        // 엑셀에서 가져온 텍스트 (예: "2026-04-07" 또는 "2026.04.07")
+        let dateStr = String(val).replace(/[\./]/g, '-').trim();
+
+        // "YYYY-MM-DD" 형태라면 뒤에 " 00:00:00"을 붙여줍니다.
+        if (dateStr.length <= 10) {
+            return `${dateStr} 00:00:00`;
         }
 
-        const pad = (n) => n.toString().padStart(2, '0');
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        // 이미 시간이 포함되어 있다면(11자 이상) 그대로 반환합니다.
+        return dateStr;
     };
 
     const handleUpload = async () => {
@@ -142,15 +132,10 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
         setLoading(true);
         try {
             const formData = new FormData();
-
-            // _channel_name_text는 미리보기용 내부 필드이므로 DB 전송 전 제거
             const uploadData = parsedData.map(({ _channel_name_text, ...rest }) => rest);
-
-            // Create a JSON file from the parsed data
             const jsonBlob = new Blob([JSON.stringify(uploadData)], { type: 'application/json' });
             formData.append('file', jsonBlob, 'import_data.json');
 
-            // 📍 로컬/프로덕션 환경에 따른 API URL 설정
             const API_BASE = import.meta.env.DEV ? '/utils' : 'https://api.cleanspartners.com/utils';
 
             const response = await fetch(`${API_BASE}/import/ord_mstr`, {
@@ -164,15 +149,6 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
             if (!response.ok) {
                 const errorText = await response.text();
                 throw new Error(`Upload failed (${response.status}): ${errorText || response.statusText}`);
-            }
-
-            const responseText = await response.text();
-            let result;
-            try {
-                result = responseText ? JSON.parse(responseText) : { data: 'success' };
-            } catch (e) {
-                console.warn("Response is not JSON:", responseText);
-                result = { data: 'success' };
             }
 
             setSuccessCount(parsedData.length);
@@ -284,9 +260,6 @@ export default function OrderImportModal({ isOpen, onClose, onUpdate }) {
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </div>
-                            <div className="bg-blue-50 text-blue-700 p-3 rounded-md text-sm">
-                                💡 <strong>partner</strong> ID와 <strong>status</strong>는 엑셀 파일의 값을 그대로 전송합니다. 데이터가 정확한지 확인해주세요.
                             </div>
                             {error && (
                                 <div className="text-sm text-red-500 flex items-center gap-2">
