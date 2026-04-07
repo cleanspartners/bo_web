@@ -38,10 +38,10 @@ export default function PartnerCombobox({ value, onChange, placeholder = "파트
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-full justify-between h-[34px] px-2 py-1.5 text-sm border-gray-300 font-normal hover:bg-white"
+                    className="w-full justify-between h-[34px] px-2 py-1.5 text-sm border-gray-300 font-normal hover:bg-white overflow-hidden"
                     disabled={disabled}
                 >
-                    <span className="truncate">
+                    <span className="truncate text-left flex-1 min-w-0">
                         {getDisplayName()}
                     </span>
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
