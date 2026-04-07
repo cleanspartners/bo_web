@@ -84,7 +84,7 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 p-4">
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 w-full max-w-md">
                 <div className="text-center mb-10">
                     <img src="/cleans2.jpg" alt="Cleans Partners BO" className="mx-auto h-16 w-auto mb-4" />
