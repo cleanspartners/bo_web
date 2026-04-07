@@ -27,12 +27,12 @@ export function useAuth() {
 
     async function checkAuth() {
         try {
-            const token = await client.getToken();
-            if (token) {
-                const userData = await client.request(readMe({
-                    fields: ['id', 'email', 'first_name', 'last_name', 'title', 'role.*']
-                }));
+            // 직접 readMe를 요청하여 토큰 만료 시 자동 갱신이 작동하도록 함
+            const userData = await client.request(readMe({
+                fields: ['id', 'email', 'first_name', 'last_name', 'title', 'role.*']
+            }));
 
+            if (userData) {
                 // 📍 관리자 권한 체크 (bo_web 전용)
                 // 'Administrator' 또는 '관리자' (한글) 허용
                 const roleName = userData?.role?.name;
@@ -60,6 +60,12 @@ export function useAuth() {
     const login = async (email, password) => {
         // mode: 'json'을 빼고 기본값(localStorage)을 사용해야 SDK의 autoRefresh가 정상 작동함 [cite: 2026-03-08]
         const result = await client.request(sdkLogin(email, password));
+
+        // 세션 유지를 위해 토큰 정보 전체(액세스/리프레시 토큰 포함)를 JSON 형식으로 저장 (SDK 표준 연동용)
+        if (result.access_token) {
+            localStorage.setItem('directus_auth', JSON.stringify(result));
+            await client.setToken(result.access_token);
+        }
 
         // 로그인 후 권한 체크를 포함한 사용자 정보 로드
         await checkAuth();
