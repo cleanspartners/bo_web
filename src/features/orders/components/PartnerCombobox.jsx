@@ -59,7 +59,11 @@ export default function PartnerCombobox({ value, onChange, placeholder = "파트
                         />
                     </div>
                 </div>
-                <div className="max-h-[200px] overflow-y-auto p-1">
+                {/* ✅ 마우스 휠 이벤트 전파 중단을 위해 onWheel 추가 */}
+                <div
+                    className="max-h-[200px] overflow-y-auto p-1"
+                    onWheel={(e) => e.stopPropagation()}
+                >
                     {loading ? (
                         <div className="py-4 text-center text-xs text-slate-500">로딩 중...</div>
                     ) : filteredPartners.length === 0 ? (
