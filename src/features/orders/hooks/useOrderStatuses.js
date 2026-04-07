@@ -30,7 +30,8 @@ export function useOrderStatuses() {
                 { text: '접수', value: '접수' },
                 { text: '작업보류', value: '작업보류' },
                 { text: '예약진행', value: '예약진행' },
-                { text: '처리완료', value: '처리완료' },
+                { text: '작업완료', value: '작업완료' },
+                { text: '입금완료', value: '입금완료' },
                 { text: 'AS접수', value: 'AS접수' },
                 { text: '접수취소', value: '접수취소' }
             ]);

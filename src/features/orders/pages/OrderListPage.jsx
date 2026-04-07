@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileInput, RotateCw, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Download, Check, ChevronsUpDown } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, FileInput, RotateCw, RefreshCw, ArrowUpDown, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Download, Check, ChevronsUpDown, ChevronDown } from 'lucide-react';
 import { readUsers } from '@directus/sdk';
 import {
     Popover,
@@ -108,7 +108,7 @@ export default function OrderListPage() {
         return {
             startDate,
             endDate,
-            status,
+            status: statusParam ? statusParam.split(',') : [],
             serviceCategory: '', // 서비스구분 검색
             partnerName: '',
             partnerId: partnerIdParam || '',
@@ -152,13 +152,35 @@ export default function OrderListPage() {
                 ]
             };
 
-            if (searchParams.status === 'late') {
-                // '작업 지연' 로직: 어제 포함 이전 & 입금완료가 아닌 건들
-                const today = getToday();
-                filter._and.push({ order_date: { _lt: today } });
-                filter._and.push({ status: { _nin: ['입금완료', '접수취소', '작업보류'] } });
-            } else if (searchParams.status && searchParams.status !== 'all') {
-                filter._and.push({ status: { _eq: searchParams.status } });
+            // 상태 필터 (다중 선택 대응)
+            if (searchParams.status && searchParams.status.length > 0) {
+                const selectedStatuses = searchParams.status;
+                const hasLate = selectedStatuses.includes('late');
+                const otherStatuses = selectedStatuses.filter(s => s !== 'late');
+
+                if (hasLate && otherStatuses.length > 0) {
+                    // '작업 지연' + 다른 상태들 선택 시 OR 조건으로 결합
+                    const today = getToday();
+                    filter._and.push({
+                        _or: [
+                            {
+                                _and: [
+                                    { order_date: { _lt: today } },
+                                    { status: { _nin: ['입금완료', '접수취소', '작업보류'] } }
+                                ]
+                            },
+                            { status: { _in: otherStatuses } }
+                        ]
+                    });
+                } else if (hasLate) {
+                    // '작업 지연'만 선택된 경우
+                    const today = getToday();
+                    filter._and.push({ order_date: { _lt: today } });
+                    filter._and.push({ status: { _nin: ['입금완료', '접수취소', '작업보류'] } });
+                } else if (otherStatuses.length > 0) {
+                    // 일반 상태들만 선택된 경우
+                    filter._and.push({ status: { _in: otherStatuses } });
+                }
             }
 
             if (searchParams.serviceCategory) {
@@ -276,7 +298,7 @@ export default function OrderListPage() {
         setSearchParams({
             startDate: getToday(),
             endDate: getOneMonthLater(),
-            status: '',
+            status: [],
             serviceCategory: '',
             partnerName: '',
             partnerId: '',
@@ -286,6 +308,39 @@ export default function OrderListPage() {
             address: '',
         });
         setPage(1);
+    };
+
+    const handleStatusToggle = (statusValue) => {
+        setSearchParams(prev => {
+            const currentStatus = Array.isArray(prev.status) ? prev.status : [];
+            if (currentStatus.includes(statusValue)) {
+                return { ...prev, status: currentStatus.filter(s => s !== statusValue) };
+            } else {
+                return { ...prev, status: [...currentStatus, statusValue] };
+            }
+        });
+    };
+
+    const handleStatusSelectAll = (checked) => {
+        if (checked) {
+            const allValues = ORDER_STATUSES.map(s => s.value);
+            setSearchParams(prev => ({ ...prev, status: allValues }));
+        } else {
+            setSearchParams(prev => ({ ...prev, status: [] }));
+        }
+    };
+
+    // 상태 라벨 생성 유틸리티
+    const getStatusLabel = () => {
+        const selected = searchParams.status;
+        if (selected.length === 0) return '상태 선택';
+        if (selected.length === ORDER_STATUSES.length) return '전체';
+        
+        const firstValue = selected[0];
+        const firstText = ORDER_STATUSES.find(s => s.value === firstValue)?.text || firstValue;
+        
+        if (selected.length === 1) return firstText;
+        return `${firstText} 외 ${selected.length - 1}건`;
     };
 
     const handlePageChange = (newPage) => {
@@ -520,18 +575,45 @@ export default function OrderListPage() {
                                 </select>
                             </div>
 
-                            <div>
+                            <div className="lg:col-span-1">
                                 <label className="block text-xs font-semibold text-gray-600 mb-1">작업상태</label>
-                                <select
-                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                                    value={searchParams.status}
-                                    onChange={(e) => setSearchParams({ ...searchParams, status: e.target.value })}
-                                >
-                                    <option value="">전체</option>
-                                    {ORDER_STATUSES.map(statusObj => (
-                                        <option key={statusObj.value} value={statusObj.value}>{statusObj.text}</option>
-                                    ))}
-                                </select>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button 
+                                            variant="outline" 
+                                            className="w-full h-[36px] px-3 py-1.5 text-sm font-normal border-gray-300 flex justify-between items-center bg-white hover:bg-gray-50/50"
+                                        >
+                                            <span className={searchParams.status.length > 0 ? "text-blue-600 font-medium" : "text-gray-500"}>
+                                                {getStatusLabel()}
+                                            </span>
+                                            <ChevronDown className="h-4 w-4 text-gray-400" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[200px] p-0 shadow-lg border-gray-200" align="start">
+                                        <div className="grid grid-cols-1 gap-1 p-2 bg-white max-h-[250px] overflow-y-auto">
+                                            <div className="flex items-center space-x-2 px-2 py-1.5 border-b border-gray-50 mb-1 sticky top-0 bg-white z-10">
+                                                <Checkbox 
+                                                    id="status-all"
+                                                    checked={searchParams.status.length === ORDER_STATUSES.length && ORDER_STATUSES.length > 0}
+                                                    onCheckedChange={(checked) => handleStatusSelectAll(checked)}
+                                                />
+                                                <label htmlFor="status-all" className="text-[11px] font-bold text-blue-600 cursor-pointer">전체 선택</label>
+                                            </div>
+                                            {ORDER_STATUSES.map((statusObj) => (
+                                                <div key={statusObj.value} className="flex items-center space-x-2 px-2 py-1.5 hover:bg-gray-50 rounded transition-colors group">
+                                                    <Checkbox 
+                                                        id={`status-${statusObj.value}`}
+                                                        checked={searchParams.status.includes(statusObj.value)}
+                                                        onCheckedChange={() => handleStatusToggle(statusObj.value)}
+                                                    />
+                                                    <label htmlFor={`status-${statusObj.value}`} className="text-[11px] text-gray-600 cursor-pointer flex-1 truncate group-hover:text-gray-900">
+                                                        {statusObj.text}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
 
                             <div>
@@ -762,7 +844,7 @@ export default function OrderListPage() {
                                                 order.status === 'AS접수' ? 'text-pink-600 border-pink-200 bg-pink-50' :
                                                     order.status === '작업보류' ? 'text-orange-600 border-orange-200 bg-orange-50' :
                                                         order.status === '예약진행' ? 'text-violet-600 border-violet-200 bg-violet-50' :
-                                                            order.status === '처리완료' ? 'text-green-600 border-green-200 bg-green-50' :
+                                                            order.status === '작업완료' ? 'text-green-600 border-green-200 bg-green-50' :
                                                                 order.status === '접수취소' ? 'text-red-600 border-red-200 bg-red-50' :
                                                                     'text-gray-600 border-gray-200 bg-gray-50'
                                                 }`}>
