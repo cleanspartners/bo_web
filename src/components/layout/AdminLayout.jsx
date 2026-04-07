@@ -8,6 +8,7 @@ export default function AdminLayout() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
     // Close sidebar on route change (mobile)
     const handleNavClick = () => {
@@ -17,10 +18,9 @@ export default function AdminLayout() {
     };
 
     const handleLogout = async () => {
-        if (confirm('로그아웃 하시겠습니까?')) {
-            await logout();
-            navigate('/login');
-        }
+        setIsLogoutModalOpen(false);
+        await logout();
+        navigate('/login');
     };
 
     return (
@@ -36,7 +36,7 @@ export default function AdminLayout() {
             {/* Sidebar */}
             <aside
                 className={`
-                    fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-in-out
+                    fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-in-out
                     md:static md:translate-x-0
                     ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:w-0 md:overflow-hidden'}
                 `}
@@ -126,14 +126,14 @@ export default function AdminLayout() {
                     </NavLink>
                 </nav>
 
-                <div className="p-4 pb-8 md:pb-4 border-t border-gray-100 whitespace-nowrap">
+                <div className="p-4 pb-12 md:pb-4 border-t border-gray-100 whitespace-nowrap">
                     <button
                         type="button"
                         onClick={(e) => {
                             e.stopPropagation();
-                            handleLogout();
+                            setIsLogoutModalOpen(true);
                         }}
-                        className="flex items-center gap-3 px-4 py-3 w-full text-left text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        className="flex items-center gap-3 px-4 py-4 w-full text-left text-sm font-bold text-red-600 hover:bg-red-50 active:bg-red-100 active:scale-95 active:opacity-80 rounded-xl transition-all cursor-pointer touch-manipulation"
                     >
                         <LogOut className="w-5 h-5 flex-shrink-0" />
                         로그아웃
@@ -166,6 +166,38 @@ export default function AdminLayout() {
                     <Outlet />
                 </div>
             </main>
+
+            {/* Logout Confirmation Modal */}
+            {isLogoutModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="text-center">
+                            <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <LogOut className="w-6 h-6 text-red-600" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-2">로그아웃</h3>
+                            <p className="text-sm text-gray-500 mb-6">로그아웃 하시겠습니까?</p>
+                            
+                            <div className="flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsLogoutModalOpen(false)}
+                                    className="flex-1 py-3 bg-gray-50 text-gray-600 font-bold rounded-xl hover:bg-gray-100 active:scale-95 transition-all text-sm"
+                                >
+                                    취소
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleLogout}
+                                    className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 active:scale-95 shadow-lg shadow-red-100 transition-all text-sm"
+                                >
+                                    로그아웃
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
