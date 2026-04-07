@@ -156,7 +156,7 @@ export default function OrderListPage() {
                 // '작업 지연' 로직: 어제 포함 이전 & 입금완료가 아닌 건들
                 const today = getToday();
                 filter._and.push({ order_date: { _lt: today } });
-                filter._and.push({ status: { _nin: ['입금완료'] } });
+                filter._and.push({ status: { _nin: ['입금완료', '접수취소', '작업보류'] } });
             } else if (searchParams.status && searchParams.status !== 'all') {
                 filter._and.push({ status: { _eq: searchParams.status } });
             }

@@ -119,7 +119,7 @@ export default function DashboardPage() {
                             _and: [
                                 { del_yn: { _neq: 'Y' } },
                                 { order_date: { _lt: todayStart } },
-                                { status: { _nin: ['입금완료'] } }
+                                { status: { _nin: ['입금완료', '접수취소', '작업보류'] } }
                             ]
                         }
                     }
