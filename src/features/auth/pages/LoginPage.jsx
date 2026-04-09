@@ -26,23 +26,8 @@ export default function LoginPage() {
         setError('');
 
         try {
-            // po_web에서 검증된 방식 사용
-            const result = await client.request(login({
-                email,
-                password,
-                mode: 'json'
-            }));
-
-            console.log("Login Result:", result); // 디버깅용 로그
-
-            // 세션 유지를 위해 토큰 정보 전체(액세스/리프레시 토큰 포함)를 JSON 형식으로 저장
-            if (result.access_token) {
-                localStorage.setItem('directus_auth', JSON.stringify(result));
-                await client.setToken(result.access_token);
-            } else {
-                console.error("Access token not found in result:", result);
-                throw new Error("Login failed: No access token received");
-            }
+            // SDK 표준 로그인 방식 사용 (객체 형태로 전달)
+            await client.login({ email, password });
 
             // 관리자 권한 체크
             const userData = await client.request(readMe({

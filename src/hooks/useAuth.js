@@ -8,18 +8,17 @@ export function useAuth() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const token = localStorage.getItem("directus_storage_token"); // Or however sdk handles it? 
-        // Actually Directus SDK handles storage automatically if configured.
-        // We just check if we can get a token or readMe.
+        // 앱 초기 로드 시 세션 복구 시도
         checkAuth();
     }, []);
 
     const logout = async () => {
         try {
             await client.logout();
+            // 명시적으로 스토리지 정리 (SDK가 처리하나 확실히 하기 위함)
+            localStorage.removeItem('directus_auth');
         } catch (e) {
-            // console.warn("Logout failed (likely no refresh token):", e);
-            // 서버 로그아웃 실패해도 클라이언트 상태는 초기화
+            console.warn("Logout failed:", e);
         }
         setIsAuthenticated(false);
         setUser(null);
@@ -27,14 +26,20 @@ export function useAuth() {
 
     async function checkAuth() {
         try {
-            // 직접 readMe를 요청하여 토큰 만료 시 자동 갱신이 작동하도록 함
+            // SDK의 세션 정보가 있는지 먼저 가볍게 확인
+            const token = await client.getToken();
+            if (!token) {
+                setLoading(false);
+                return;
+            }
+
+            // 토큰이 있다면 사용자 정보 요청 (만료 시 autoRefresh 작동)
             const userData = await client.request(readMe({
                 fields: ['id', 'email', 'first_name', 'last_name', 'title', 'role.*']
             }));
 
             if (userData) {
-                // 📍 관리자 권한 체크 (bo_web 전용)
-                // 'Administrator' 또는 '관리자' (한글) 허용
+                // 📍 관리자 권한 체크
                 const roleName = userData?.role?.name;
                 if (roleName !== 'Administrator' && roleName !== '관리자') {
                     throw new Error("관리자 권한이 없습니다.");
@@ -44,11 +49,10 @@ export function useAuth() {
                 setIsAuthenticated(true);
             }
         } catch (e) {
-            // console.warn("Not authenticated or token invalid", e);
+            console.error("Auth check failed:", e);
             setIsAuthenticated(false);
             setUser(null);
 
-            // 관리자 권한 없음 에러는 로그아웃 처리하여 토큰 등 정리
             if (e.message === "관리자 권한이 없습니다.") {
                 await logout();
             }
@@ -58,22 +62,14 @@ export function useAuth() {
     }
 
     const login = async (email, password) => {
-        // mode: 'json'을 빼고 기본값(localStorage)을 사용해야 SDK의 autoRefresh가 정상 작동함 [cite: 2026-03-08]
-        const result = await client.request(sdkLogin(email, password));
-
-        // 세션 유지를 위해 토큰 정보 전체(액세스/리프레시 토큰 포함)를 JSON 형식으로 저장 (SDK 표준 연동용)
-        if (result.access_token) {
-            localStorage.setItem('directus_auth', JSON.stringify(result));
-            await client.setToken(result.access_token);
-        }
-
-        // 로그인 후 권한 체크를 포함한 사용자 정보 로드
+        // SDK 표준 로그인 사용 (객체 형태로 전달)
+        await client.login({ email, password });
+        
+        // 로그인 후 상태 업데이트를 위해 checkAuth 실행
         await checkAuth();
 
-        // checkAuth에서 실패하여 isAuthenticated가 false라면 에러 던짐
-        const token = await client.getToken();
-        if (!token) {
-            throw new Error("관리자 권한이 없어 로그인이 거부되었습니다.");
+        if (!user) {
+            throw new Error("사용자 정보를 불러오는데 실패했습니다.");
         }
     };
 
