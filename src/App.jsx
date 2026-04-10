@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from '@/features/auth/pages/LoginPage';
 import AdminLayout from '@/components/layout/AdminLayout';
@@ -19,6 +20,20 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
+  // 📍 자동 새로고침(캐시 버스팅) 로직
+  useEffect(() => {
+    // __APP_VERSION__ 은 vite.config.js에서 주입됨
+    const latestVersion = typeof __APP_VERSION__ !== 'undefined' ? String(__APP_VERSION__) : 'dev';
+    const savedVersion = localStorage.getItem("__app_version__");
+
+    if (savedVersion && savedVersion !== latestVersion) {
+      localStorage.setItem("__app_version__", latestVersion);
+      window.location.reload(true);
+    } else {
+      localStorage.setItem("__app_version__", latestVersion);
+    }
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
