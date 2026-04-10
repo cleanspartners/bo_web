@@ -769,7 +769,15 @@ export default function OrderListPage() {
                                     />
                                 </TableHead>
                                 <TableHead className="w-[50px] text-center">No.</TableHead>
-                                <TableHead className="w-[100px] text-center">고객명</TableHead>
+                                <TableHead
+                                    className="w-[100px] text-center cursor-pointer hover:bg-gray-200 transition-colors group"
+                                    onClick={() => handleSort('customer_name')}
+                                >
+                                    <div className="flex items-center justify-center gap-1">
+                                        고객명
+                                        {renderSortIcon('customer_name')}
+                                    </div>
+                                </TableHead>
                                 <TableHead
                                     className="w-[120px] text-center cursor-pointer hover:bg-gray-200 transition-colors group"
                                     onClick={() => handleSort('order_date')}

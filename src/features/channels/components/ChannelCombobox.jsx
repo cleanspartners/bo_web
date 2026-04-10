@@ -54,7 +54,29 @@ export default function ChannelCombobox({ value, onChange, placeholder = "채널
                     ) : filteredChannels.length === 0 ? (
                         <div className="py-4 text-center text-xs text-slate-500">검색 결과가 없습니다.</div>
                     ) : (
-                        filteredChannels.map((channel) => (
+                        <>
+                            {/* 📍 선택 취소(전체) 옵션 추가 */}
+                            <div
+                                className={cn(
+                                    "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-slate-100 font-bold text-blue-600 border-b mb-1",
+                                    !value ? "bg-slate-50" : ""
+                                )}
+                                onClick={() => {
+                                    onChange("");
+                                    setOpen(false);
+                                    setSearchQuery('');
+                                }}
+                            >
+                                <Check
+                                    className={cn(
+                                        "mr-2 h-4 w-4",
+                                        !value ? "opacity-100" : "opacity-0"
+                                    )}
+                                />
+                                전체 (선택 안 함)
+                            </div>
+
+                            {filteredChannels.map((channel) => (
                             <div
                                 key={channel.id}
                                 className={cn(
@@ -77,7 +99,8 @@ export default function ChannelCombobox({ value, onChange, placeholder = "채널
                                     {channel.channel_name}
                                 </span>
                             </div>
-                        ))
+                            ))}
+                        </>
                     )}
                 </div>
             </PopoverContent>
