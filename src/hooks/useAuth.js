@@ -53,8 +53,10 @@ export function useAuth() {
             setIsAuthenticated(false);
             setUser(null);
 
-            if (e.message === "관리자 권한이 없습니다.") {
-                await logout();
+            // 📍 사이드 이펙트 방지: 관리자 권한이 없거나, 인증 실패(401 등)인 경우에만 로그아웃 처리
+            const isAuthError = e.message === "관리자 권한이 없습니다." || e.errors || (e.response && e.response.status === 401);
+            if (isAuthError) {
+                await logout().catch(() => {});
             }
         } finally {
             setLoading(false);
