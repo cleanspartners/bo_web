@@ -453,7 +453,6 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                     <NumberInput
                                         name="channel_fee_amount"
                                         value={formData.channel_fee_amount}
-                                        readOnly={true}
                                         className="h-9 w-full text-right font-bold text-sm bg-slate-50 text-red-600"
                                         focusedField={focusedField}
                                         setFocusedField={setFocusedField}
