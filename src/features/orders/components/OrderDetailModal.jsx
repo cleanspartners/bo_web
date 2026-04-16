@@ -19,6 +19,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import PartnerCombobox from './PartnerCombobox';
 import { useOrderStatuses } from '../hooks/useOrderStatuses';
 
@@ -120,6 +121,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                     rel_commission_amount: 0,
                     channel_fee_amount: 0,
                     net_profit: 0,
+                    is_fee_hidden: 'N',
                     cstm_memo: '',
                     memo: '',
                 };
@@ -183,6 +185,7 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                 rel_commission_amount: response.rel_commission_amount || 0,
                 channel_fee_amount: response.channel_fee_amount || 0,
                 net_profit: response.net_profit || 0,
+                is_fee_hidden: response.is_fee_hidden || 'N',
                 cstm_memo: response.cstm_memo || '',
                 memo: response.memo || '',
             };
@@ -343,8 +346,15 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
             if (onUpdate) onUpdate();
             onClose();
         } catch (error) {
-            console.error("저장 실패:", error);
-            alert("저장에 실패했습니다.");
+            console.error("저장 실패 상세:", error);
+            // 에러 객체의 상세 내용을 alert로 표시
+            let errorMsg = "저장에 실패했습니다.";
+            if (error.errors && error.errors.length > 0) {
+                errorMsg += "\n- " + error.errors.map(e => e.message).join("\n- ");
+            } else if (error.message) {
+                errorMsg += "\n- " + error.message;
+            }
+            alert(errorMsg);
         } finally {
             setLoading(false);
         }
@@ -428,6 +438,34 @@ export default function OrderDetailModal({ isOpen, onClose, orderId, onUpdate })
                                     <Input name="service_type" value={formData.service_type} onChange={handleChange} className="h-9 w-full text-sm" />
                                 }
                             />
+
+                             {/* 수수료 미노출 여부 */}
+                            <FormRow label="수수료 미노출 여부">
+                                <div className="flex items-center gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="is_fee_hidden"
+                                            value="N"
+                                            checked={formData.is_fee_hidden === 'N'}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, is_fee_hidden: e.target.value }))}
+                                            className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-slate-700">노출 (기본)</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="is_fee_hidden"
+                                            value="Y"
+                                            checked={formData.is_fee_hidden === 'Y'}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, is_fee_hidden: e.target.value }))}
+                                            className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-slate-700">미노출</span>
+                                    </label>
+                                </div>
+                            </FormRow>
 
                             {/* 채널명 / 공급업체 수수료 */}
                             <FormRowPair
