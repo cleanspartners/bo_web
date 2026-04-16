@@ -20,18 +20,33 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
-  // 📍 자동 새로고침(캐시 버스팅) 로직
+  // 📍 자동 새로고침(캐시 버스팅) 로직 (개선: 외부 version.json 체크 방식)
   useEffect(() => {
-    // __APP_VERSION__ 은 vite.config.js에서 주입됨
-    const latestVersion = typeof __APP_VERSION__ !== 'undefined' ? String(__APP_VERSION__) : 'dev';
-    const savedVersion = localStorage.getItem("__app_version__");
+    const checkVersion = async () => {
+      try {
+        // 캐시를 방지하기 위해 타임스탬프를 쿼리 파라미터로 붙임
+        const response = await fetch(`/version.json?t=${Date.now()}`);
+        
+        // 서버에서 JSON이 아닌 HTML(404 fallback 등)을 반환하는 경우 구성하지 않음
+        const contentType = response.headers.get("content-type");
+        if (!response.ok || !contentType || !contentType.includes("application/json")) return;
 
-    if (savedVersion && savedVersion !== latestVersion) {
-      localStorage.setItem("__app_version__", latestVersion);
-      window.location.reload(true);
-    } else {
-      localStorage.setItem("__app_version__", latestVersion);
-    }
+        const data = await response.json();
+        const latestVersion = String(data.version);
+        const savedVersion = localStorage.getItem("__app_version__");
+
+        if (savedVersion && savedVersion !== latestVersion) {
+          localStorage.setItem("__app_version__", latestVersion);
+          window.location.reload(true);
+        } else if (!savedVersion) {
+          localStorage.setItem("__app_version__", latestVersion);
+        }
+      } catch (error) {
+        console.warn("Version check failed:", error);
+      }
+    };
+
+    checkVersion();
   }, []);
 
   return (
