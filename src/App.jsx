@@ -21,26 +21,34 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
-  // 📍 자동 새로고침(캐시 버스팅) 로직 (개선: 외부 version.json 체크 방식)
+  // 📍 자동 새로고침(캐시 버스팅) 로직
+  // __APP_VERSION__: 빌드 시점에 자동 생성되는 타임스탬프 (vite.config.js에서 define)
+  // version.json: 빌드 시 dist에 같은 값으로 자동 생성
+  // → 다음 배포 시 구 클라이언트의 __APP_VERSION__ ≠ 새 version.json → reload 발동
   useEffect(() => {
     const checkVersion = async () => {
       try {
-        // 캐시를 방지하기 위해 타임스탬프를 쿼리 파라미터로 붙임
         const response = await fetch(`/version.json?t=${Date.now()}`);
-        
-        // 서버에서 JSON이 아닌 HTML(404 fallback 등)을 반환하는 경우 구성하지 않음
         const contentType = response.headers.get("content-type");
         if (!response.ok || !contentType || !contentType.includes("application/json")) return;
 
         const data = await response.json();
-        const latestVersion = String(data.version);
-        const savedVersion = localStorage.getItem("__app_version__");
+        const serverVersion = String(data.version);
+        const clientVersion = String(typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev');
 
-        if (savedVersion && savedVersion !== latestVersion) {
-          localStorage.setItem("__app_version__", latestVersion);
-          window.location.reload(true);
-        } else if (!savedVersion) {
-          localStorage.setItem("__app_version__", latestVersion);
+        // dev 모드에서는 체크하지 않음
+        if (clientVersion === 'dev') return;
+
+        if (serverVersion !== clientVersion) {
+          // 무한 루프 방지: 현재 세션에서 최대 3번까지만 시도
+          const reloadCount = Number(sessionStorage.getItem("__reload_count__") || 0);
+          if (reloadCount < 3) {
+            sessionStorage.setItem("__reload_count__", String(reloadCount + 1));
+            window.location.reload();
+          }
+        } else {
+          // 버전이 일치하면 카운트 초기화
+          sessionStorage.removeItem("__reload_count__");
         }
       } catch (error) {
         console.warn("Version check failed:", error);
@@ -49,6 +57,7 @@ function App() {
 
     checkVersion();
   }, []);
+
 
   return (
     <BrowserRouter>
