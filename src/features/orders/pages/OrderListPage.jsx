@@ -141,6 +141,15 @@ export default function OrderListPage() {
         fetchOrders();
     }, [page, limit, sort]);
 
+    // 📍 URL 파라미터에 id가 있을 경우(관련 주문 이동 등) 자동으로 상세 모달 오픈
+    useEffect(() => {
+        const orderId = urlSearchParams.get('id');
+        if (orderId) {
+            setSelectedOrderId(orderId);
+            setIsModalOpen(true);
+        }
+    }, [urlSearchParams]);
+
     const fetchOrders = async () => {
         try {
             setLoading(true);
